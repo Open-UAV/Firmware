@@ -36,8 +36,8 @@ fi
 
 if [ "$model" == "" ] || [ "$model" == "none" ]
 then
-	echo "empty model, setting iris as default"
-	model="iris"
+	echo "empty model, setting UPenn F450  as default"
+	model="f450"
 fi
 
 if [ "$#" -lt 7 ]
