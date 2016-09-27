@@ -1,3 +1,12 @@
+NSF Student Competition SITL Gazebo test environment
+
+To install on a fresh Ubuntu VM, open a terminal and go through the following steps.
+
+    wget https://raw.githubusercontent.com/darknight-007/Firmware/master/setup-install.sh
+    bash setup-install.sh
+
+(you will be asked for your password in the beginning)
+
 <<<<<<< HEAD
 ## PX4 Pro Drone Autopilot ##
 
