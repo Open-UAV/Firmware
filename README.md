@@ -7,6 +7,10 @@ To install on a fresh Ubuntu VM, open a terminal and go through the following st
 
 (you will be asked for your password in the beginning)
 
+[![UPenn/NSF PX4 Simulation Stack](https://www.dropbox.com/s/y6fetkbs5utv9kc/px4-sim-splash.jpg?dl=1)](https://www.youtube.com/watch?v=JhK4x5JImLA)
+
+
+
 <<<<<<< HEAD
 ## PX4 Pro Drone Autopilot ##
 
