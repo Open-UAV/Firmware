@@ -1,4 +1,4 @@
-NSF Student Competition SITL Gazebo test environment
+NSF Student Competition flight stack firmware and simulation stack based off of http://px4.io, http://www.ros.org/, and http://gazebosim.org
 
 To install on a fresh Ubuntu VM, open a terminal and go through the following steps.
 
@@ -9,6 +9,7 @@ To install on a fresh Ubuntu VM, open a terminal and go through the following st
 
 [![UPenn/NSF PX4 Simulation Stack](https://www.dropbox.com/s/y6fetkbs5utv9kc/px4-sim-splash.jpg?dl=1)](https://www.youtube.com/watch?v=JhK4x5JImLA)
 
+[![UPenn/NSF Pixhawk/PX4-based UAV](https://www.dropbox.com/s/xf39b8pcml4bh8z/upenn-f450-mocap-trial.jpg?dl=1)](https://www.youtube.com/watch?v=b0AhAHZMD1w)
 
 
 <<<<<<< HEAD
