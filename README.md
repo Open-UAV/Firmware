@@ -1,6 +1,6 @@
 NSF Student Competition flight controller and simulation stack based off of http://px4.io, http://www.ros.org/, and http://gazebosim.org
 
-To install on a fresh Ubuntu VM, open a terminal and go through the following steps.
+To install the software stack on a fresh Ubuntu 14.04 machine, open a terminal and go through the following steps.
 
     wget https://raw.githubusercontent.com/darknight-007/Firmware/master/setup-install.sh
     bash setup-install.sh
