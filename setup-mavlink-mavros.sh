@@ -12,6 +12,7 @@ rosdep install --from-paths src --ignore-src --rosdistro jade -y
 cd ~/catkin_ws/src/
 ln -s ~/src/Firmware/
 ln -s ~/src/Firmware/Tools/sitl_gazebo/
+cd ..
 catkin build 
 echo "source ~/catkin_ws/devel/setup.bash" >> ~/.bashrc
 
