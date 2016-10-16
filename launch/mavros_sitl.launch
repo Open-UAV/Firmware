@@ -3,7 +3,7 @@
 
 <arg name="ns" default="/" />
 <arg name="fcu_url" default="udp://localhost:14560@localhost:14565" />
-<arg name="gcs_url" default="" />
+<arg name="gcs_url" default="udp://@69.249.178.132" />
 <arg name="tgt_system" default="1" />
 <arg name="tgt_component" default="50" />
 
