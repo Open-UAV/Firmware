@@ -1,4 +1,4 @@
-NSF Student Competition flight controller and simulation stack based off of http://px4.io, http://www.ros.org/, and http://gazebosim.org
+NSF Student Competition flight controller and simulation stack, powered by http://px4.io, http://www.ros.org/, and http://gazebosim.org
 
 To install the software stack on a fresh Ubuntu 14.04 machine, open a terminal and go through the following steps.
 
