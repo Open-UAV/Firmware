@@ -1,13 +1,17 @@
-NSF Student Competition SITL Gazebo test environment
+NSF Student Competition flight controller and simulation stack based off of http://px4.io, http://www.ros.org/, and http://gazebosim.org
 
-To install on a fresh Ubuntu VM, open a terminal and go through the following steps.
+To install the software stack on a fresh Ubuntu 14.04 machine, open a terminal and go through the following steps.
 
     wget https://raw.githubusercontent.com/darknight-007/Firmware/master/setup-install.sh
     bash setup-install.sh
 
 (you will be asked for your password in the beginning)
 
-<<<<<<< HEAD
+[![UPenn/NSF PX4 Simulation Stack](https://www.dropbox.com/s/y6fetkbs5utv9kc/px4-sim-splash.jpg?dl=1)](https://www.youtube.com/watch?v=JhK4x5JImLA)
+
+[![UPenn/NSF Pixhawk/PX4-based UAV](https://www.dropbox.com/s/xf39b8pcml4bh8z/upenn-f450-mocap-trial.jpg?dl=1)](https://www.youtube.com/watch?v=b0AhAHZMD1w)
+
+FROM UPSTREAM
 ## PX4 Pro Drone Autopilot ##
 
 [![Releases](https://img.shields.io/github/release/PX4/Firmware.svg)](https://github.com/PX4/Firmware/releases) [![DOI](https://zenodo.org/badge/22634/PX4/Firmware.svg)](https://zenodo.org/badge/latestdoi/22634/PX4/Firmware) [![Build Status](https://travis-ci.org/PX4/Firmware.svg?branch=master)](https://travis-ci.org/PX4/Firmware) [![Coverity Scan](https://scan.coverity.com/projects/3966/badge.svg?flat=1)](https://scan.coverity.com/projects/3966?tab=overview)
@@ -43,6 +47,4 @@ This repository contains code supporting these boards:
   * FMUv4.x (Pixhawk X and [Pixracer](http://dev.px4.io/hardware-pixracer.html))
   * AeroCore (v1 and v2)
   * STM32F4Discovery (basic support) [Tutorial](https://pixhawk.org/modules/stm32f4discovery)
-=======
-# Firmware
->>>>>>> 2d32db73fe218fcbd10407c7b93c6c14989d77c2
+
