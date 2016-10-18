@@ -6,6 +6,7 @@ import rospy
 from mavros_msgs.msg import State
 from geometry_msgs.msg import PoseStamped, Point, Quaternion
 import math
+from std_msgs.msg import Float64
 import numpy
 
 
@@ -20,21 +21,14 @@ class OffbPosCtl:
 
     des_pose = PoseStamped()
     isReadyToFly = False
-    # locations = numpy.matrix([[0, 0, 2, 0, 0, 0],
-    #                           [8, 8, 2, 0, 0, 0],
-    #                           [0, 0, 2, 0, 0, 0]
-    #                           ])
 
-    locations = numpy.matrix([[2, 0, 1, 0, 0, -0.48717451, -0.87330464],
-                              [0, 2, 1, 0, 0, 0, 1],
-                              [-2, 0, 1, 0.,  0.,  0.99902148, -0.04422762],
-                              [0, -2, 1, 0, 0, 0, 0],
-                              ])
 
 
     def __init__(self):
         rospy.init_node('offboard_test', anonymous=True)
-        pose_pub = rospy.Publisher('/mavros/setpoint_position/local', PoseStamped, queue_size=10)
+        att_attitude_pub = rospy.Publisher('/mavros/setpoint_attitude/attitude', PoseStamped, queue_size=10)
+        att_thr_pub = rospy.Publisher('/mavros/setpoint_attitude/att_thr', Float64, callback=self.mocap_cb)
+
         mocap_sub = rospy.Subscriber('/mavros/local_position/pose', PoseStamped, callback=self.mocap_cb)
         state_sub = rospy.Subscriber('/mavros/state', State, callback=self.state_cb)
 
