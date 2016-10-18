@@ -32,4 +32,4 @@ git clone https://github.com/darknight-007/Firmware
 cd Firmware
 git submodule update --init --recursive
 echo "now type the following at the command prompt:"
-echo "make posix_sitl_default gazebo"
+echo "cd ~/src/Firmware/ && make posix_sitl_default gazebo"
