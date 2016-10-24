@@ -34,21 +34,22 @@ class OffboardPosCtlWithOnlineDynamicalUpdates:
     des_pose = PoseStamped()
     isReadyToFly = False
 
-    locations = numpy.matrix([[2, 0, 1, 0, 0, -0.48717451, -0.87330464],
-                              [0, 2, 1, 0, 0, 0, 1],
-                              [-2, 0, 1, 0.,  0.,  0.99902148, -0.04422762],
-                              [0, -2, 1, 0, 0, 0, 0],
+    locations = numpy.matrix([[100, 0, 6, 0, 0, -0.48717451, -0.87330464],
+                              [0, 100, 6, 0, 0, 0, 1],
+                              [-100, 0, 6, 0.,  0.,  0.99902148, -0.04422762],
+                              [0, -100, 6, 0, 0, 0, 0],
                               ])
 
-    MPC_PITCH_P = 0
-    MPC_PITCH_D = 1
-    MPC_ROLL_P = 2
-    MPC_ROLL_D = 3
-    MPC_PITCHRATE_P = 4
-    MPC_PITCHRATE_D = 5
-    MPC_ROLLRATE_P = 6
-    MPC_ROLLRATE_D = 7
-    MPC_XY_CRUISE = 8
+    paramList = \
+        {'MPC_PITCH_P': 0,
+        'MPC_PITCH_D': 1,
+        'MPC_ROLL_P': 2,
+        'MPC_ROLL_D': 3,
+        'MPC_PITCHRATE_P': 4,
+        'MPC_PITCHRATE_D': 5,
+        'MPC_ROLLRATE_P': 6,
+        'MPC_ROLLRATE_D': 7,
+        'MPC_XY_CRUISE': 8}
 
 
     def __init__(self):
@@ -141,13 +142,14 @@ class OffboardPosCtlWithOnlineDynamicalUpdates:
 
 
     def nanokontrolCallback(self,msg):
-        velocity =  (((msg.axes[0])+1)*4)
-        param = ParamValue()
-        param.real = velocity
-        paramReq = ParamSetRequest()
-        paramReq.param_id = 'MPC_XY_CRUISE'
-        paramReq.value = param
-        self.param_service.call(paramReq)
+        for key, value in self.paramList:
+            value = (((msg.axes[value])+1)*3)
+            param = ParamValue()
+            param.real = value
+            paramReq = ParamSetRequest()
+            paramReq.param_id = key
+            paramReq.value = param
+            self.param_service.call(paramReq)
 
 
 
