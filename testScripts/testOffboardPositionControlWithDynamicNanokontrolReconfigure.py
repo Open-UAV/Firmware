@@ -40,16 +40,7 @@ class OffboardPosCtlWithOnlineDynamicalUpdates:
                               [0, -100, 6, 0, 0, 0, 0],
                               ])
 
-    paramList = \
-        {'MPC_PITCH_P': 0,
-        'MPC_PITCH_D': 1,
-        'MPC_ROLL_P': 2,
-        'MPC_ROLL_D': 3,
-        'MPC_PITCHRATE_P': 4,
-        'MPC_PITCHRATE_D': 5,
-        'MPC_ROLLRATE_P': 6,
-        'MPC_ROLLRATE_D': 7,
-        'MPC_XY_CRUISE': 8}
+    paramList = {'MC_PITCH_P': 0,'MC_PITCH_D': 1, 'MC_ROLL_P': 2, 'MC_ROLL_D': 3, 'MC_PITCHRATE_P': 4,'MC_PITCHRATE_D': 5, 'MC_ROLLRATE_P': 6,'MC_ROLLRATE_D': 7,'MPC_XY_CRUISE': 8}
 
 
     def __init__(self):
@@ -142,13 +133,15 @@ class OffboardPosCtlWithOnlineDynamicalUpdates:
 
 
     def nanokontrolCallback(self,msg):
-        for key, value in self.paramList:
-            value = (((msg.axes[value])+1)*3)
+        for key,value in self.paramList.items():
+            paramVal = (((msg.axes[value])+1)*2.0)
+            print paramVal
             param = ParamValue()
-            param.real = value
+            param.real = paramVal
             paramReq = ParamSetRequest()
             paramReq.param_id = key
             paramReq.value = param
+            print key, value, paramVal
             self.param_service.call(paramReq)
 
 
