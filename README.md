@@ -1,4 +1,6 @@
-NSF Student Competition flight controller and simulation stack, powered by http://px4.io, http://www.ros.org/, and http://gazebosim.org
+OpenUAV flight controller and simulation stack, powered by http://px4.io, http://www.ros.org/, and http://gazebosim.org
+
+See http://openuav.us for miscellaneous information on the project. 
 
 To install the software stack on a fresh Ubuntu 14.04 machine, open a terminal and go through the following steps.
 
