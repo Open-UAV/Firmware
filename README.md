@@ -2,12 +2,8 @@ OpenUAV flight controller and simulation stack, powered by http://px4.io, http:/
 
 See http://openuav.us for miscellaneous information on the project. 
 
-To install the software stack on a fresh Ubuntu 14.04 machine, open a terminal and go through the following steps.
+To install the software stack on a fresh Ubuntu 14.04 machine, follow the instructions at http://openuav.us/wiki/index.php/Software_Stack#INSTALLATION
 
-    wget https://raw.githubusercontent.com/darknight-007/Firmware/master/setup-install.sh
-    bash setup-install.sh
-
-(you will be asked for your password in the beginning)
 
 [![UPenn/NSF PX4 Simulation Stack](https://www.dropbox.com/s/y6fetkbs5utv9kc/px4-sim-splash.jpg?dl=1)](https://www.youtube.com/watch?v=JhK4x5JImLA)
 
