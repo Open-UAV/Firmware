@@ -1,7 +1,7 @@
 uorb start
 param load
-param set MAV_SYS_ID 1
-param set MAV_COMP_ID 1
+param set MAV_SYS_ID 2
+param set MAV_COMP_ID 2
 param set MAV_TYPE 2
 param set SYS_AUTOSTART 4010
 param set SYS_RESTART_TYPE 2
@@ -44,7 +44,7 @@ param set MPC_Z_VEL_I 0.15
 param set EKF2_GBIAS_INIT 0.01
 param set EKF2_ANGERR_INIT 0.01
 replay tryapplyparams
-simulator start -s
+simulator start -s -u 14660
 rgbledsim start
 tone_alarm start
 gyrosim start
@@ -63,18 +63,18 @@ local_position_estimator start
 mc_pos_control start
 mc_att_control start
 mixer load /dev/pwm_output0 ROMFS/px4fmu_common/mixers/quad_w.main.mix
-mavlink start -u 14556 -r 4000000
-mavlink start -u 14557 -r 4000000 -m onboard -o 14540
-mavlink stream -r 50 -s POSITION_TARGET_LOCAL_NED -u 14556
-mavlink stream -r 100 -s LOCAL_POSITION_NED -u 14556
-mavlink stream -r 50 -s GLOBAL_POSITION_INT -u 14556
-mavlink stream -r 50 -s ATTITUDE -u 14556
-mavlink stream -r 50 -s ATTITUDE_QUATERNION -u 14556
-mavlink stream -r 50 -s ATTITUDE_TARGET -u 14556
-mavlink stream -r 50 -s SERVO_OUTPUT_RAW_0 -u 14556
-mavlink stream -r 20 -s RC_CHANNELS -u 14556
-mavlink stream -r 50 -s HIGHRES_IMU -u 14556
-mavlink stream -r 10 -s OPTICAL_FLOW_RAD -u 14556
+mavlink start -u 14656 -r 4000000
+mavlink start -u 14657 -r 4000000 -m onboard -o 14640
+mavlink stream -r 50 -s POSITION_TARGET_LOCAL_NED -u 14656
+mavlink stream -r 100 -s LOCAL_POSITION_NED -u 14656
+mavlink stream -r 50 -s GLOBAL_POSITION_INT -u 14656
+mavlink stream -r 50 -s ATTITUDE -u 14656
+mavlink stream -r 50 -s ATTITUDE_QUATERNION -u 14656
+mavlink stream -r 50 -s ATTITUDE_TARGET -u 14656
+mavlink stream -r 50 -s SERVO_OUTPUT_RAW_0 -u 14656
+mavlink stream -r 20 -s RC_CHANNELS -u 14656
+mavlink stream -r 50 -s HIGHRES_IMU -u 14656
+mavlink stream -r 10 -s OPTICAL_FLOW_RAD -u 14656
 logger start -e -t
 mavlink boot_complete
 replay trystart
