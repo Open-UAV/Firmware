@@ -10,7 +10,7 @@
 
 
     <arg name="est" default="lpe"/>
-    <arg name="vehicle" default="openUAV"/>
+    <arg name="vehicle" default="f450"/>
     <arg name="world" default="$(find mavlink_sitl_gazebo)/worlds/timpa-jd-sparse-v3.world"/>
     <arg name="sdf" default="$(find mavlink_sitl_gazebo)/models/$(arg vehicle)/$(arg vehicle).sdf"/>
 
