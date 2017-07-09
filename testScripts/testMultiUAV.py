@@ -17,6 +17,7 @@ def pos_cb(msg):
     cur_pose = msg
 
 #Setup
+NUM_UAV = 3
 launchfile = "posix_sitl_two.launch"
 subprocess.Popen("roscore")
 print ("Roscore launched!")
@@ -30,29 +31,34 @@ subprocess.Popen(["roslaunch",fullpath])
 print ("Gazebo launched!")
 
 gzclient_pid = 0
+local_pos = []
+mode_proxy = []
+arm_proxy = []
+pos_sub = []
+
+
+def mavrosTopicStringRoot(UAV_ID=0):
+    return ('mavros' + str(UAV_ID)).replace('0', '')
+
+start_pos = []
+
+startPosX = [0 5 7]
+startPosY = [0 0 0]
+startPosZ = [5 5 5]
 
 
 #Comm for drone 1
-local_pos1 = rospy.Publisher('mavros1/setpoint_position/local',PoseStamped,queue_size=10)
-mode_proxy1 = rospy.ServiceProxy('mavros1/set_mode', SetMode)
-arm_proxy1 = rospy.ServiceProxy('mavros1/cmd/arming', CommandBool)
-pos_sub1 = rospy.Subscriber('/mavros1/local_position/pose', PoseStamped, callback=pos_cb)
+for uavID in range(0,NUM_UAV):
+    local_pos[uavID] = rospy.Publisher(mavrosTopicStringRoot(uavID) + '/setpoint_position/local', PoseStamped, queue_size=10)
+    mode_proxy[uavID] = rospy.ServiceProxy(mavrosTopicStringRoot(uavID) + '/set_mode', SetMode)
+    arm_proxy[uavID] = rospy.ServiceProxy(mavrosTopicStringRoot(uavID) + '/cmd/arming', CommandBool)
+    pos_sub[uavID] = rospy.Subscriber(mavrosTopicStringRoot(uavID) + '/local_position/pose', PoseStamped, callback=pos_cb)
 
-start_pos1 = PoseStamped()
-start_pos1.pose.position.x = 0
-start_pos1.pose.position.y = 0
-start_pos1.pose.position.z = 10
+    start_pos[uavID] = PoseStamped()
+    start_pos[uavID].pose.position.x = startPosX[uavID]
+    start_pos[uavID].pose.position.y = startPosY[uavID]
+    start_pos[uavID].pose.position.z = startPosZ[uavID]
 
-#Comm for drone 2
-local_pos2 = rospy.Publisher('mavros2/setpoint_position/local',PoseStamped,queue_size=10)
-mode_proxy2 = rospy.ServiceProxy('mavros2/set_mode', SetMode)
-arm_proxy2 = rospy.ServiceProxy('mavros2/cmd/arming', CommandBool)
-pos_sub2 = rospy.Subscriber('/mavros2/local_position/pose', PoseStamped, callback=pos_cb)
-
-start_pos2 = PoseStamped()
-start_pos2.pose.position.x = 5
-start_pos2.pose.position.y = 0
-start_pos2.pose.position.z = 5
 
 print "Waiting for mavros..."
 data1 = None
