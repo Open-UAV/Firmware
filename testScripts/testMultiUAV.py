@@ -60,46 +60,43 @@ for uavID in range(0,NUM_UAV):
     start_pos[uavID].pose.position.z = startPosZ[uavID]
 
 
-print "Waiting for mavros..."
-data1 = None
-data2 = None
-while data1 is None or data2 is None:
+    data[uavID] = None
+    while None in data:
+        try:
+            data[uavID] = rospy.wait_for_message(mavrosTopicStringRoot(uavID) + '/global_position/rel_alt', Float64, timeout=5)
+        except:
+            pass
+
+    print "wait for service"
+    rospy.wait_for_service('mavros1/set_mode')
+    rospy.wait_for_service('mavros2/set_mode')
+    print "got service"
+
+    for i in range(0,100):
+        local_pos1.publish(start_pos1)
+        local_pos2.publish(start_pos2)
+
+    #setup offboard
     try:
-        data1 = rospy.wait_for_message('/mavros1/global_position/rel_alt', Float64, timeout=5)
-        data2 = rospy.wait_for_message('/mavros2/global_position/rel_alt', Float64, timeout=5)
-    except:
-        pass
-
-print "wait for service"
-rospy.wait_for_service('mavros1/set_mode')
-rospy.wait_for_service('mavros2/set_mode')
-print "got service"
-
-for i in range(0,100):
-    local_pos1.publish(start_pos1)
-    local_pos2.publish(start_pos2)
-
-#setup offboard
-try:
-    success = mode_proxy1(0,'OFFBOARD')
-    print success
-    success2 = mode_proxy2(0,'OFFBOARD')
-    print success2
-except rospy.ServiceException, e:
-    print ("mavros/set_mode service call failed: %s"%e)
+        success = mode_proxy1(0,'OFFBOARD')
+        print success
+        success2 = mode_proxy2(0,'OFFBOARD')
+        print success2
+    except rospy.ServiceException, e:
+        print ("mavros/set_mode service call failed: %s"%e)
 
 
-#Arm
-print "arming"
-rospy.wait_for_service('mavros1/cmd/arming')
-try:
-   success = arm_proxy1(True)
-   print success
-   success2 = arm_proxy2(True)
-   print success
-except rospy.ServiceException, e:
-   print ("mavros1/set_mode service call failed: %s"%e)
-   print "armed"
+    #Arm
+    print "arming"
+    rospy.wait_for_service('mavros1/cmd/arming')
+    try:
+       success = arm_proxy1(True)
+       print success
+       success2 = arm_proxy2(True)
+       print success
+    except rospy.ServiceException, e:
+       print ("mavros1/set_mode service call failed: %s"%e)
+       print "armed"
 
 #Main method
 rate = rospy.Rate(10)
