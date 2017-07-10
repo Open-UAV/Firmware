@@ -30,6 +30,9 @@ startPosX = [0, 5, 7]
 startPosY = [0, 0, 0]
 startPosZ = [5, 5, 5]
 
+rospy.init_node('multi', anonymous=True)
+
+
 #Comm for drones
 for uavID in range(0,NUM_UAV):
     local_pos[uavID] = rospy.Publisher(mavrosTopicStringRoot(uavID) + '/setpoint_position/local', PoseStamped, queue_size=10)
