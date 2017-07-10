@@ -47,6 +47,7 @@ print 'communication initialization complete'
 
 for uavID in range(0, NUM_UAV):
     try:
+        print start_pos[uavID]
         data[uavID] = rospy.wait_for_message(mavrosTopicStringRoot(uavID) + '/global_position/rel_alt', Float64, timeout=5)
     except:
         pass
