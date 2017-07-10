@@ -13,7 +13,7 @@ def pos_cb(msg):
     global cur_pose
     cur_pose = msg
 
-NUM_UAV = 3
+NUM_UAV = 2
 
 local_pos = [None for i in range(NUM_UAV)]
 mode_proxy = [None for i in range(NUM_UAV)]
@@ -68,11 +68,17 @@ success = [None for i in range(NUM_UAV)]
 for uavID in range(0, NUM_UAV):
 
     try:
+        print mode_proxy[uavID]
         success[uavID] = mode_proxy[uavID](0,'OFFBOARD')
         print 'mode '
         print success[uavID]
     except rospy.ServiceException, e:
         print ("mavros/set_mode service call failed: %s"%e)
+
+
+#Main method
+rate = rospy.Rate(10)
+print "Main Running"
 
 success = [None for i in range(NUM_UAV)]
 for uavID in range(0, NUM_UAV):
@@ -89,9 +95,6 @@ for uavID in range(0, NUM_UAV):
        print ("mavros1/set_mode service call failed: %s"%e)
        print "armed"
 
-#Main method
-rate = rospy.Rate(10)
-print "Main Running"
 while not rospy.is_shutdown():
     for uavID in range(0, NUM_UAV):
         local_pos[uavID].publish(start_pos[uavID])
