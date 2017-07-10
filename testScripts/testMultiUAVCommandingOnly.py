@@ -56,6 +56,8 @@ while None in data:
         except:
             pass
 
+for uavID in range(0, NUM_UAV):
+
     print "wait for service"
     rospy.wait_for_service(mavrosTopicStringRoot(uavID) + '/set_mode')
     print "got service"
