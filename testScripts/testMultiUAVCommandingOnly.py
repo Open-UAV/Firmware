@@ -69,7 +69,7 @@ for uavID in range(0, NUM_UAV):
 
     try:
         print mode_proxy[uavID]
-        success[uavID] = mode_proxy[uavID](0,'OFFBOARD')
+        success[uavID] = mode_proxy[uavID](1,'OFFBOARD')
         print 'mode '
         print success[uavID]
     except rospy.ServiceException, e:
