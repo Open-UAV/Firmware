@@ -47,7 +47,6 @@ for uavID in range(0,NUM_UAV):
     print uavID
 
 print 'communication initialization complete'
-
 while None in data:
     for uavID in range(0, NUM_UAV):
         try:
@@ -57,31 +56,30 @@ while None in data:
             pass
 
 for uavID in range(0, NUM_UAV):
-
     print "wait for service"
     rospy.wait_for_service(mavrosTopicStringRoot(uavID) + '/set_mode')
     print "got service"
 
 for uavID in range(0, NUM_UAV):
-
     for i in range(0,100):
         local_pos[uavID].publish(start_pos[uavID])
 
+success = [None for i in range(NUM_UAV)]
 for uavID in range(0, NUM_UAV):
 
-    #setup offboard
-    success = [None for i in range(NUM_UAV)]
     try:
         success[uavID] = mode_proxy[uavID](0,'OFFBOARD')
         print success[uavID]
     except rospy.ServiceException, e:
         print ("mavros/set_mode service call failed: %s"%e)
 
+success = [None for i in range(NUM_UAV)]
 for uavID in range(0, NUM_UAV):
-
     #Arm
     print 'arming' + mavrosTopicStringRoot(uavID)
     rospy.wait_for_service(mavrosTopicStringRoot(uavID) + '/cmd/arming')
+
+for uavID in range(0, NUM_UAV):
     try:
        success[uavID] = arm_proxy[uavID](True)
        print success[uavID]
