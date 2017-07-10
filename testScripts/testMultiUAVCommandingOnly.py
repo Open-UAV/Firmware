@@ -20,11 +20,12 @@ mode_proxy = [None for i in range(NUM_UAV)]
 arm_proxy = [None for i in range(NUM_UAV)]
 pos_sub = [None for i in range(NUM_UAV)]
 data = [None for i in range(NUM_UAV)]
+start_pos = [None for i in range(NUM_UAV)]
+
 
 def mavrosTopicStringRoot(UAV_ID=0):
     return ('mavros' + str(UAV_ID)).replace('0', '')
 
-start_pos = []
 startPosX = [0, 5, 7]
 startPosY = [0, 0, 0]
 startPosZ = [5, 5, 5]
