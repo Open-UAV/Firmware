@@ -45,11 +45,10 @@ for uavID in range(0,NUM_UAV):
 
 print 'communication initialization complete'
 
-for uavID in range(0, NUM_UAV):
-    while None in data:
+while None in data:
+    for uavID in range(0, NUM_UAV):
         try:
-            print start_pos[uavID]
-            print mavrosTopicStringRoot(uavID)
+            print mavrosTopicStringRoot(uavID) + '/global_position/rel_alt'
             data[uavID] = rospy.wait_for_message(mavrosTopicStringRoot(uavID) + '/global_position/rel_alt', Float64, timeout=5)
         except:
             pass
