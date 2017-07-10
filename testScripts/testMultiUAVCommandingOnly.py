@@ -16,10 +16,10 @@ def pos_cb(msg):
 NUM_UAV = 3
 
 local_pos = [None for i in range(NUM_UAV)]
-mode_proxy = [rospy.ServiceProxy() for i in range(NUM_UAV)]
-arm_proxy = [rospy.ServiceProxy() for i in range(NUM_UAV)]
-pos_sub = [rospy.Subscriber() for i in range(NUM_UAV)]
-data = [rospy.wait_for_message() for i in range(NUM_UAV)]
+mode_proxy = [None for i in range(NUM_UAV)]
+arm_proxy = [None for i in range(NUM_UAV)]
+pos_sub = [None for i in range(NUM_UAV)]
+data = [None for i in range(NUM_UAV)]
 
 def mavrosTopicStringRoot(UAV_ID=0):
     return ('mavros' + str(UAV_ID)).replace('0', '')
@@ -28,7 +28,6 @@ start_pos = []
 startPosX = [0, 5, 7]
 startPosY = [0, 0, 0]
 startPosZ = [5, 5, 5]
-data = []
 
 #Comm for drones
 for uavID in range(0,NUM_UAV):
