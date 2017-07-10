@@ -99,7 +99,7 @@
                 <param name="gcs_url" value="" />
                 <param name="target_system_id" value="3" />
                 <param name="target_component_id" value="3" />
-                <param name="system_id" value="48" />
+                <param name="system_id" value="56" />
                 <!-- load blacklist, config -->
                 <rosparam command="load" file="$(arg pluginlists_yaml)" />
                 <rosparam command="load" file="$(arg config_yaml)" />
