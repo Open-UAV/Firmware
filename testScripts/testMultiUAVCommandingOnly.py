@@ -15,7 +15,7 @@ def pos_cb(msg):
 
 NUM_UAV = 3
 
-local_pos = [rospy.Publisher() for i in range(NUM_UAV)]
+local_pos = [None for i in range(NUM_UAV)]
 mode_proxy = [rospy.ServiceProxy() for i in range(NUM_UAV)]
 arm_proxy = [rospy.ServiceProxy() for i in range(NUM_UAV)]
 pos_sub = [rospy.Subscriber() for i in range(NUM_UAV)]
