@@ -13,7 +13,7 @@ def pos_cb(msg):
     global cur_pose
     cur_pose = msg
 
-NUM_UAV = 2
+NUM_UAV = 3
 
 local_pos = [None for i in range(NUM_UAV)]
 mode_proxy = [None for i in range(NUM_UAV)]
