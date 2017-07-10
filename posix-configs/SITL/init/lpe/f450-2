@@ -63,18 +63,18 @@ local_position_estimator start
 mc_pos_control start
 mc_att_control start
 mixer load /dev/pwm_output0 ROMFS/px4fmu_common/mixers/quad_w.main.mix
-mavlink start -u 14656 -r 4000000
-mavlink start -u 14657 -r 4000000 -m onboard -o 14640
-mavlink stream -r 50 -s POSITION_TARGET_LOCAL_NED -u 14656
-mavlink stream -r 100 -s LOCAL_POSITION_NED -u 14656
-mavlink stream -r 50 -s GLOBAL_POSITION_INT -u 14656
-mavlink stream -r 50 -s ATTITUDE -u 14656
-mavlink stream -r 50 -s ATTITUDE_QUATERNION -u 14656
-mavlink stream -r 50 -s ATTITUDE_TARGET -u 14656
-mavlink stream -r 50 -s SERVO_OUTPUT_RAW_0 -u 14656
-mavlink stream -r 20 -s RC_CHANNELS -u 14656
-mavlink stream -r 50 -s HIGHRES_IMU -u 14656
-mavlink stream -r 10 -s OPTICAL_FLOW_RAD -u 14656
+mavlink start -u 14756 -r 4000000
+mavlink start -u 14757 -r 4000000 -m onboard -o 14740
+mavlink stream -r 50 -s POSITION_TARGET_LOCAL_NED -u 14756
+mavlink stream -r 100 -s LOCAL_POSITION_NED -u 14756
+mavlink stream -r 50 -s GLOBAL_POSITION_INT -u 14756
+mavlink stream -r 50 -s ATTITUDE -u 14756
+mavlink stream -r 50 -s ATTITUDE_QUATERNION -u 14756
+mavlink stream -r 50 -s ATTITUDE_TARGET -u 14756
+mavlink stream -r 50 -s SERVO_OUTPUT_RAW_0 -u 14756
+mavlink stream -r 20 -s RC_CHANNELS -u 14756
+mavlink stream -r 50 -s HIGHRES_IMU -u 14756
+mavlink stream -r 10 -s OPTICAL_FLOW_RAD -u 14756
 logger start -e -t
 mavlink boot_complete
 replay trystart
