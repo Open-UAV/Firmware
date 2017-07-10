@@ -93,5 +93,6 @@ for uavID in range(0, NUM_UAV):
 rate = rospy.Rate(10)
 print "Main Running"
 while not rospy.is_shutdown():
-    local_pos[uavID].publish(start_pos[uavID])
-    rate.sleep()
+    for uavID in range(0, NUM_UAV):
+        local_pos[uavID].publish(start_pos[uavID])
+        rate.sleep()
