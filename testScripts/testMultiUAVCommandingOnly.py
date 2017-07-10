@@ -69,7 +69,8 @@ for uavID in range(0, NUM_UAV):
 
     try:
         success[uavID] = mode_proxy[uavID](0,'OFFBOARD')
-        print 'mode ' + success[uavID]
+        print 'mode '
+        print success[uavID]
     except rospy.ServiceException, e:
         print ("mavros/set_mode service call failed: %s"%e)
 
@@ -82,7 +83,8 @@ for uavID in range(0, NUM_UAV):
 for uavID in range(0, NUM_UAV):
     try:
        success[uavID] = arm_proxy[uavID](True)
-       print 'arming ' + success[uavID]
+       print 'arming '
+       print success[uavID]
     except rospy.ServiceException, e:
        print ("mavros1/set_mode service call failed: %s"%e)
        print "armed"
