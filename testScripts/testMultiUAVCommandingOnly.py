@@ -23,8 +23,8 @@ data = [None for i in range(NUM_UAV)]
 start_pos = [None for i in range(NUM_UAV)]
 
 
-def mavrosTopicStringRoot(UAV_ID=0):
-    return ('mavros' + str(UAV_ID)).replace('0', '')
+def mavrosTopicStringRoot(uavID=0):
+    return ('mavros' + str(uavID))
 
 startPosX = [0, 5, 7]
 startPosY = [0, 0, 0]
@@ -43,10 +43,7 @@ for uavID in range(0,NUM_UAV):
     start_pos[uavID].pose.position.z = startPosZ[uavID]
 
 
-    data[uavID] = None
-
 for uavID in range(0, NUM_UAV):
-
     while None in data:
         try:
             data[uavID] = rospy.wait_for_message(mavrosTopicStringRoot(uavID) + '/global_position/rel_alt', Float64, timeout=5)
