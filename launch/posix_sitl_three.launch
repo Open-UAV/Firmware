@@ -8,11 +8,11 @@
     <arg name="P" default="0"/>
     <arg name="Y" default="0"/>
 
-    <arg name="x2" default="-1"/>
-    <arg name="y2" default="-3"/>
+    <arg name="x2" default="0"/>
+    <arg name="y2" default="1"/>
 
-  <arg name="x3" default="-3"/>
-    <arg name="y3" default="-4"/>
+  <arg name="x3" default="0"/>
+    <arg name="y3" default="-1"/>
 
 
     <arg name="est" default="lpe"/>
