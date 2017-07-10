@@ -24,7 +24,7 @@ start_pos = [None for i in range(NUM_UAV)]
 
 
 def mavrosTopicStringRoot(uavID=0):
-    return ('mavros' + str(uavID))
+    return ('mavros' + str(uavID+1))
 
 startPosX = [0, 5, 7]
 startPosY = [0, 0, 0]
