@@ -41,9 +41,8 @@ for uavID in range(0,NUM_UAV):
     start_pos[uavID].pose.position.x = startPosX[uavID]
     start_pos[uavID].pose.position.y = startPosY[uavID]
     start_pos[uavID].pose.position.z = startPosZ[uavID]
-    print uavID
 
-print 'communication initialization complete'
+
 for uavID in range(0, NUM_UAV):
     while None in data:
         try:
