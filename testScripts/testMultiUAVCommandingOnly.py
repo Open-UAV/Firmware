@@ -64,7 +64,7 @@ while None in data:
         local_pos[uavID].publish(start_pos[uavID])
 
     #setup offboard
-    success = []
+    success = [None for i in range(NUM_UAV)]
     try:
         success[uavID] = mode_proxy[uavID](0,'OFFBOARD')
         print success[uavID]
