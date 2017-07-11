@@ -1,0 +1,164 @@
+<launch>
+
+    <!-- Posix SITL environment launch script -->
+    <arg name="z" default="0"/>
+    <arg name="R" default="0"/>
+    <arg name="P" default="0"/>
+    <arg name="Y" default="0"/>
+
+
+
+    <arg name="x11" default="0"/>
+    <arg name="y11" default="1"/>
+    <arg name="x21" default="0"/>
+    <arg name="y22" default="2"/>
+    <arg name="x31" default="0"/>
+    <arg name="y33" default="3"/>
+    <arg name="x41" default="0"/>
+    <arg name="y44" default="4"/>
+    <arg name="x51" default="0"/>
+    <arg name="y55" default="5"/>
+    <arg name="x61" default="0"/>
+    <arg name="y66" default="6"/>
+
+
+    <arg name="est" default="lpe"/>
+    <arg name="vehicle1" default="f450-tmp-1"/>
+    <arg name="vehicle2" default="f450-tmp-2"/>
+    <arg name="vehicle3" default="f450-tmp-3"/>
+    <arg name="vehicle4" default="f450-tmp-4"/>
+    <arg name="vehicle5" default="f450-tmp-5"/>
+    <arg name="vehicle6" default="f450-tmp-6"/>
+    <arg name="world" default="$(find mavlink_sitl_gazebo)/worlds/empty.world"/>
+    <arg name="sdf1" default="$(find mavlink_sitl_gazebo)/models/$(arg vehicle1)/$(arg vehicle1).sdf"/>
+    <arg name="rcS1" default="$(find px4)/posix-configs/SITL/init/$(arg est)/$(arg vehicle1)"/>
+    <arg name="sdf2" default="$(find mavlink_sitl_gazebo)/models/$(arg vehicle2)/$(arg vehicle2).sdf"/>
+    <arg name="rcS2" default="$(find px4)/posix-configs/SITL/init/$(arg est)/$(arg vehicle2)"/>
+    <arg name="sdf3" default="$(find mavlink_sitl_gazebo)/models/$(arg vehicle3)/$(arg vehicle3).sdf"/>
+    <arg name="rcS3" default="$(find px4)/posix-configs/SITL/init/$(arg est)/$(arg vehicle3)"/>
+    <arg name="sdf4" default="$(find mavlink_sitl_gazebo)/models/$(arg vehicle4)/$(arg vehicle4).sdf"/>
+    <arg name="rcS4" default="$(find px4)/posix-configs/SITL/init/$(arg est)/$(arg vehicle4)"/>
+    <arg name="sdf5" default="$(find mavlink_sitl_gazebo)/models/$(arg vehicle5)/$(arg vehicle5).sdf"/>
+    <arg name="rcS5" default="$(find px4)/posix-configs/SITL/init/$(arg est)/$(arg vehicle5)"/>
+    <arg name="sdf6" default="$(find mavlink_sitl_gazebo)/models/$(arg vehicle6)/$(arg vehicle6).sdf"/>
+    <arg name="rcS6" default="$(find px4)/posix-configs/SITL/init/$(arg est)/$(arg vehicle6)"/>
+
+    <arg name="headless" default="true"/>
+    <arg name="gui" default="false"/>
+    <arg name="ns" default="/"/>
+
+    <arg name="debug" default="false"/>
+    <arg name="verbose" default="false"/>
+    <arg name="paused" default="true"/>
+
+    <arg name="log_output" default="screen" />
+
+    <arg name="pluginlists_yaml" value="$(find mavros)/launch/px4_pluginlists.yaml" />
+    <arg name="config_yaml" value="$(find mavros)/launch/px4_config.yaml" />
+
+    <node name="sitl1" pkg="px4" type="px4" output="screen"
+        args="$(find px4) $(arg rcS1)">
+    </node>
+    <node name="sitl2" pkg="px4" type="px4" output="screen"
+        args="$(find px4) $(arg rcS2)">
+    </node>
+    <node name="sitl3" pkg="px4" type="px4" output="screen"
+        args="$(find px4) $(arg rcS3)">
+    </node>
+    <node name="sitl4" pkg="px4" type="px4" output="screen"
+        args="$(find px4) $(arg rcS4)">
+    </node>
+    <node name="sitl5" pkg="px4" type="px4" output="screen"
+        args="$(find px4) $(arg rcS5)">
+    </node>
+    <node name="sitl6" pkg="px4" type="px4" output="screen"
+        args="$(find px4) $(arg rcS6)">
+    </node>
+
+
+    <include file="$(find gazebo_ros)/launch/empty_world.launch">
+        <arg name="headless" value="$(arg headless)"/>
+        <arg name="gui" value="$(arg gui)"/>
+        <arg name="world_name" value="$(arg world)" />
+        <arg name="debug" value="$(arg debug)" />
+        <arg name="verbose" value="$(arg verbose)" />
+        <arg name="paused" value="$(arg paused)" />
+    </include>
+
+    <node name="$(anon vehicle_spawn_1)" output="screen" pkg="gazebo_ros" type="spawn_model"
+        args="-sdf -file $(arg sdf1) -model $(arg vehicle1) -x $(arg x1) -y $(arg y1) -z $(arg z) -R $(arg R) -P $(arg P) -Y $(arg Y)"/>-->
+
+    <node name="$(anon vehicle_spawn_2)" output="screen" pkg="gazebo_ros" type="spawn_model"
+        args="-sdf -file $(arg sdf2) -model $(arg vehicle2) -x $(arg x2) -y $(arg y2) -z $(arg z) -R $(arg R) -P $(arg P) -Y $(arg Y)"/>-->
+
+    <node name="$(anon vehicle_spawn_3)" output="screen" pkg="gazebo_ros" type="spawn_model"
+        args="-sdf -file $(arg sdf3) -model $(arg vehicle3) -x $(arg x3) -y $(arg y3) -z $(arg z) -R $(arg R) -P $(arg P) -Y $(arg Y)"/>-->
+
+    <node name="$(anon vehicle_spawn_4)" output="screen" pkg="gazebo_ros" type="spawn_model"
+        args="-sdf -file $(arg sdf4) -model $(arg vehicle4) -x $(arg x4) -y $(arg y4) -z $(arg z) -R $(arg R) -P $(arg P) -Y $(arg Y)"/>-->
+
+    <node name="$(anon vehicle_spawn_5)" output="screen" pkg="gazebo_ros" type="spawn_model"
+        args="-sdf -file $(arg sdf5) -model $(arg vehicle5) -x $(arg x5) -y $(arg y5) -z $(arg z) -R $(arg R) -P $(arg P) -Y $(arg Y)"/>-->
+
+    <node name="$(anon vehicle_spawn_6)" output="screen" pkg="gazebo_ros" type="spawn_model"
+        args="-sdf -file $(arg sdf6) -model $(arg vehicle6) -x $(arg x6) -y $(arg y6) -z $(arg z) -R $(arg R) -P $(arg P) -Y $(arg Y)"/>-->
+
+
+    <node pkg="mavros" type="mavros_node" name="mavros1" required="true" clear_params="true" output="$(arg log_output)">
+		<param name="fcu_url" value="udp://:1411410@localhost:141157"/>
+		<param name="gcs_url" value="" />
+		<param name="target_system_id" value="1" />
+		<param name="target_component_id" value="1" />
+		<param name="system_id" value="10" />
+		<rosparam command="load" file="$(arg pluginlists_yaml)" />
+		<rosparam command="load" file="$(arg config_yaml)" />
+	</node>
+    <node pkg="mavros" type="mavros_node" name="mavros2" required="true" clear_params="true" output="$(arg log_output)">
+		<param name="fcu_url" value="udp://:1421420@localhost:142157"/>
+		<param name="gcs_url" value="" />
+		<param name="target_system_id" value="2" />
+		<param name="target_component_id" value="2" />
+		<param name="system_id" value="20" />
+		<rosparam command="load" file="$(arg pluginlists_yaml)" />
+		<rosparam command="load" file="$(arg config_yaml)" />
+	</node>
+    <node pkg="mavros" type="mavros_node" name="mavros3" required="true" clear_params="true" output="$(arg log_output)">
+		<param name="fcu_url" value="udp://:1431430@localhost:143157"/>
+		<param name="gcs_url" value="" />
+		<param name="target_system_id" value="3" />
+		<param name="target_component_id" value="3" />
+		<param name="system_id" value="30" />
+		<rosparam command="load" file="$(arg pluginlists_yaml)" />
+		<rosparam command="load" file="$(arg config_yaml)" />
+	</node>
+    <node pkg="mavros" type="mavros_node" name="mavros4" required="true" clear_params="true" output="$(arg log_output)">
+		<param name="fcu_url" value="udp://:1441440@localhost:144157"/>
+		<param name="gcs_url" value="" />
+		<param name="target_system_id" value="4" />
+		<param name="target_component_id" value="4" />
+		<param name="system_id" value="40" />
+		<rosparam command="load" file="$(arg pluginlists_yaml)" />
+		<rosparam command="load" file="$(arg config_yaml)" />
+	</node>
+    <node pkg="mavros" type="mavros_node" name="mavros5" required="true" clear_params="true" output="$(arg log_output)">
+		<param name="fcu_url" value="udp://:1451450@localhost:145157"/>
+		<param name="gcs_url" value="" />
+		<param name="target_system_id" value="5" />
+		<param name="target_component_id" value="5" />
+		<param name="system_id" value="50" />
+		<rosparam command="load" file="$(arg pluginlists_yaml)" />
+		<rosparam command="load" file="$(arg config_yaml)" />
+	</node>
+    <node pkg="mavros" type="mavros_node" name="mavros6" required="true" clear_params="true" output="$(arg log_output)">
+		<param name="fcu_url" value="udp://:1461460@localhost:146157"/>
+		<param name="gcs_url" value="" />
+		<param name="target_system_id" value="6" />
+		<param name="target_component_id" value="6" />
+		<param name="system_id" value="60" />
+		<rosparam command="load" file="$(arg pluginlists_yaml)" />
+		<rosparam command="load" file="$(arg config_yaml)" />
+	</node>
+
+</launch>
+
+<!-- vim: set et ft=xml fenc=utf-8 ff=unix sts=0 sw=1 ts=1 : -->

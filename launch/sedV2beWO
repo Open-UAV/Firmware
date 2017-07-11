@@ -1,0 +1,33 @@
+<launch>
+
+    <!-- Posix SITL environment launch script -->
+    <arg name="z" default="0"/>
+    <arg name="R" default="0"/>
+    <arg name="P" default="0"/>
+    <arg name="Y" default="0"/>
+
+
+
+    <arg name="x11" default="0"/>
+    <arg name="y11" default="1"/>
+
+
+    <arg name="est" default="lpe"/>
+    <arg name="vehicle1" default="f450-tmp-1"/>
+    <arg name="world" default="$(find mavlink_sitl_gazebo)/worlds/empty.world"/>
+    <arg name="sdf1" default="$(find mavlink_sitl_gazebo)/models/$(arg vehicle1)/$(arg vehicle1).sdf"/>
+    <arg name="rcS1" default="$(find px4)/posix-configs/SITL/init/$(arg est)/$(arg vehicle1)"/>
+
+    <arg name="headless" default="true"/>
+    <arg name="gui" default="false"/>
+    <arg name="ns" default="/"/>
+
+    <arg name="debug" default="false"/>
+    <arg name="verbose" default="false"/>
+    <arg name="paused" default="true"/>
+
+    <arg name="log_output" default="screen" />
+
+    <arg name="pluginlists_yaml" value="$(find mavros)/launch/px4_pluginlists.yaml" />
+    <arg name="config_yaml" value="$(find mavros)/launch/px4_config.yaml" />
+

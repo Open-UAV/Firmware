@@ -49,16 +49,3 @@
         args="-sdf -file $(arg sdf1) -model $(arg vehicle1) -x $(arg x1) -y $(arg y1) -z $(arg z) -R $(arg R) -P $(arg P) -Y $(arg Y)"/>-->
 
 
-    <node pkg="mavros" type="mavros_node" name="mavros1" required="true" clear_params="true" output="$(arg log_output)">
-		<param name="fcu_url" value="udp://:1411410@localhost:141157"/>
-		<param name="gcs_url" value="" />
-		<param name="target_system_id" value="1" />
-		<param name="target_component_id" value="1" />
-		<param name="system_id" value="10" />
-		<rosparam command="load" file="$(arg pluginlists_yaml)" />
-		<rosparam command="load" file="$(arg config_yaml)" />
-	</node>
-
-</launch>
-
-<!-- vim: set et ft=xml fenc=utf-8 ff=unix sts=0 sw=1 ts=1 : -->

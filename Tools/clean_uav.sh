@@ -1,5 +1,5 @@
 #!/bin/bash
-rm -r sitl_gazebo/models/f450-tmp-*
-rm ../posix-configs/SITL/init/lpe/f450-tmp-*
-rm ../launch/posix_sitl_multi_tmp.launch
+rm -r /root/src/Firmware/Tools/sitl_gazebo/models/f450-tmp-*
+rm /root/src/Firmware/posix-configs/SITL/init/lpe/f450-tmp-*
+rm /root/src/Firmware/launch/posix_sitl_multi_tmp.launch
 
