@@ -57,7 +57,7 @@
 		<param name="system_id" value="10" />
 		<rosparam command="load" file="$(arg pluginlists_yaml)" />
 		<rosparam command="load" file="$(arg config_yaml)" />
-	</node>
+    </node>
 
 </launch>
 
