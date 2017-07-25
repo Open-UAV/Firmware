@@ -48,70 +48,57 @@ for uavID in range(0, NUM_UAV):
     for i in range(0,100):
         local_pos[uavID].publish(start_pos[uavID])
 
-print "Waiting for mavros..."
-data1 = None
-data2 = None
-data3 = None
-data4 = None
-while data1 is None or data2 is None:
+data = [None for i in range(NUM_UAV)]
+
+while None in data:
+    for uavID in range(0, NUM_UAV):
+        try:
+            print mavrosTopicStringRoot(uavID) + '/global_position/rel_alt'
+            data[uavID] = rospy.wait_for_message(mavrosTopicStringRoot(uavID) + '/global_position/rel_alt', Float64, timeout=5)
+        except:
+            pass
+for uavID in range(0, NUM_UAV):
+    print "wait for service"
+    rospy.wait_for_service(mavrosTopicStringRoot(uavID) + '/set_mode')
+    print "got service"
+
+for uavID in range(0, NUM_UAV):
+
     try:
-        data1 = rospy.wait_for_message('/mavros1/global_position/rel_alt', Float64, timeout=5)
-        data2 = rospy.wait_for_message('/mavros2/global_position/rel_alt', Float64, timeout=5)
-        data3 = rospy.wait_for_message('/mavros3/global_position/rel_alt', Float64, timeout=5)
-        data4 = rospy.wait_for_message('/mavros4/global_position/rel_alt', Float64, timeout=5)
-    except:
-        pass
+        print mode_proxy[uavID]
+        success[uavID] = mode_proxy[uavID](1,'OFFBOARD')
+        print 'mode '
+        print success[uavID]
+    except rospy.ServiceException, e:
+        print ("mavros/set_mode service call failed: %s"%e)
 
-print "wait for service"
-rospy.wait_for_service('mavros1/set_mode')
-rospy.wait_for_service('mavros2/set_mode')
-rospy.wait_for_service('mavros3/set_mode')
-rospy.wait_for_service('mavros4/set_mode')
-print "got service"
-
-for i in range(0,100):
-    local_pos1.publish(start_pos1)
-    local_pos2.publish(start_pos2)
-    local_pos3.publish(start_pos1)
-    local_pos4.publish(start_pos2)
-
-#setup offboard
-try:
-    success = mode_proxy1(0,'OFFBOARD')
-    print success
-    success2 = mode_proxy2(0,'OFFBOARD')
-    print success2
-    success3 = mode_proxy3(0,'OFFBOARD')
-    print success3
-    success4 = mode_proxy4(0,'OFFBOARD')
-    print success4
-except rospy.ServiceException, e:
-    print ("mavros/set_mode service call failed: %s"%e)
+for uavID in range(0, NUM_UAV):
+    for i in range(0,100):
+        local_pos[uavID].publish(start_pos[uavID])
 
 
 #Arm
-print "arming"
-rospy.wait_for_service('mavros1/cmd/arming')
-try:
-   success = arm_proxy1(True)
-   print success
-   success2 = arm_proxy2(True)
-   print success2
-   success3 = arm_proxy3(True)
-   print success3
-   success4 = arm_proxy4(True)
-   print success4
-except rospy.ServiceException, e:
-   print ("mavros1/set_mode service call failed: %s"%e)
-   print "armed"
+success = [None for i in range(NUM_UAV)]
+for uavID in range(0, NUM_UAV):
+    #Arm
+    print 'arming' + mavrosTopicStringRoot(uavID)
+    rospy.wait_for_service(mavrosTopicStringRoot(uavID) + '/cmd/arming')
+
+for uavID in range(0, NUM_UAV):
+    try:
+       success[uavID] = arm_proxy[uavID](True)
+       print 'arming '
+       print success[uavID]
+    except rospy.ServiceException, e:
+       print ("mavros1/set_mode service call failed: %s"%e)
+       print "armed"
 
 #Main method
 rate = rospy.Rate(10)
 print "Main Running"
 while not rospy.is_shutdown():
-    local_pos1.publish(start_pos1)
-    local_pos2.publish(start_pos2)
-    local_pos3.publish(start_pos3)
-    local_pos4.publish(start_pos4)
+    for uavID in range(0, NUM_UAV):
+        for i in range(0, 100):
+            local_pos[uavID].publish(start_pos[uavID])
     rate.sleep()
 
