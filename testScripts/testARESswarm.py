@@ -11,9 +11,9 @@ from gazebo_msgs.msg import ModelStates
 from mavros_msgs.srv import CommandBool, CommandTOL, SetMode
 from geometry_msgs.msg import PoseStamped,Pose,Vector3,Twist,TwistStamped
 from std_srvs.srv import Empty
-
+NUM_UAV= int(sys.argv[0])
 #Setup
-process = subprocess.Popen(["/bin/bash","/root/src/Firmware/Tools/swarm.sh",sys.argv[0]],stdout=subprocess.PIPE)
+process = subprocess.Popen(["/bin/bash","/root/src/Firmware/Tools/swarm.sh",],stdout=subprocess.PIPE)
 process.wait()
 for line in process.stdout:
 	print line
@@ -30,7 +30,17 @@ subprocess.Popen(["roslaunch",fullpath])
 print ("Gazebo launched!")
 
 gzclient_pid = 0
+startPosX = [5, 4, 4]
+startPosY = [0, 0, 0]
+startPosZ = [5, 5, 5]
+local_pos = [None for i in range(NUM_UAV)]
+mode_proxy = [None for i in range(NUM_UAV)]
+arm_proxy = [None for i in range(NUM_UAV)]
+pos_sub = [None for i in range(NUM_UAV)]
+start_pos = [None for i in range(NUM_UAV)]
 
+def mavrosTopicStringRoot(uavID=0):
+    return ('mavros' + str(uavID+1))
 
 for uavID in range(0,NUM_UAV):
     local_pos[uavID] = rospy.Publisher(mavrosTopicStringRoot(uavID) + '/setpoint_position/local', PoseStamped, queue_size=10)
