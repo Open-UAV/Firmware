@@ -40,6 +40,11 @@ arm_proxy = [None for i in range(NUM_UAV)]
 pos_sub = [None for i in range(NUM_UAV)]
 start_pos = [None for i in range(NUM_UAV)]
 
+cur_pose = PoseStamped()
+def pos_cb(msg):
+    global cur_pose
+    cur_pose = msg
+
 def mavrosTopicStringRoot(uavID=0):
     return ('mavros' + str(uavID+1))
 
@@ -55,9 +60,6 @@ for uavID in range(0,NUM_UAV):
     start_pos[uavID].pose.position.z = startPosZ[uavID]
     print uavID
 
-for uavID in range(0, NUM_UAV):
-    for i in range(0,100):
-        local_pos[uavID].publish(start_pos[uavID])
 
 data = [None for i in range(NUM_UAV)]
 
