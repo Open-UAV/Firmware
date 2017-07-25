@@ -11,16 +11,16 @@ from gazebo_msgs.msg import ModelStates
 from mavros_msgs.srv import CommandBool, CommandTOL, SetMode
 from geometry_msgs.msg import PoseStamped,Pose,Vector3,Twist,TwistStamped
 from std_srvs.srv import Empty
-NUM_UAV= 0
-print sys.argv[0]
+
+NUM_UAV=int(sys.argv[1])
 #Setup
 process = subprocess.Popen(["/bin/bash","/root/src/Firmware/Tools/swarm.sh",],stdout=subprocess.PIPE)
 process.wait()
 for line in process.stdout:
 	print line
 launchfile = "posix_sitl_multi_tmp.launch"
-subprocess.Popen("roscore")
-print ("Roscore launched!")
+#subprocess.Popen("roscore")
+#print ("Roscore launched!")
 
 # Launch the simulation with the given launchfile name
 rospy.init_node('multi', anonymous=True)
