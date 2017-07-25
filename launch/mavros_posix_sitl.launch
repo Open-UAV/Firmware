@@ -24,6 +24,7 @@
     <arg name="debug" default="false"/>
     <arg name="verbose" default="false"/>
     <arg name="paused" default="false"/>
+    <arg name="record_data" default="true"/>
 
     <include file="$(find px4)/launch/posix_sitl.launch">
         <arg name="x" value="$(arg x)"/>
@@ -49,6 +50,12 @@
         <arg name="gcs_url" value=""/> <!-- GCS link is provided by SITL -->
         <arg name="fcu_url" value="$(arg fcu_url)"/>
     </include>
+
+    <node pkg="rosbag" type="record" name="rosbag_record_state"
+       args="record -o open_record /mavros/local_position/pose /mavros/local_position/odom /mavros/local_position/velocity /mavros/setpoint_position/local /mavros/setpoint_velocity/cmd_vel
+ /mavros/imu/data"
+       if="$(arg record_data)" />
+
 </launch>
 
 <!-- vim: set et ft=xml fenc=utf-8 ff=unix sts=0 sw=4 ts=4 : -->

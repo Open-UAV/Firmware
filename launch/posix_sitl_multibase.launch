@@ -8,8 +8,8 @@
 
 
 
-    <arg name="x11" default="0"/>
-    <arg name="y11" default="1"/>
+    <arg name="x1" default="0"/>
+    <arg name="y1" default="1"/>
 
 
     <arg name="est" default="lpe"/>
@@ -24,7 +24,7 @@
 
     <arg name="debug" default="false"/>
     <arg name="verbose" default="false"/>
-    <arg name="paused" default="true"/>
+    <arg name="paused" default="false"/>
 
     <arg name="log_output" default="screen" />
 
@@ -50,14 +50,14 @@
 
 
     <node pkg="mavros" type="mavros_node" name="mavros1" required="true" clear_params="true" output="$(arg log_output)">
-		<param name="fcu_url" value="udp://:1411410@localhost:141157"/>
+		<param name="fcu_url" value="udp://:141410@localhost:14157"/>
 		<param name="gcs_url" value="" />
 		<param name="target_system_id" value="1" />
 		<param name="target_component_id" value="1" />
 		<param name="system_id" value="10" />
 		<rosparam command="load" file="$(arg pluginlists_yaml)" />
 		<rosparam command="load" file="$(arg config_yaml)" />
-	</node>
+    </node>
 
 </launch>
 

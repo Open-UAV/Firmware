@@ -38,7 +38,7 @@ arm_proxy1 = rospy.ServiceProxy('mavros1/cmd/arming', CommandBool)
 
 start_pos1 = PoseStamped()
 start_pos1.pose.position.x = 0
-start_pos1.pose.position.y = 5
+start_pos1.pose.position.y = 0
 start_pos1.pose.position.z = 10
 
 #Comm for drone 2
@@ -82,8 +82,7 @@ while data1 is None or data2 is None or data3 is None or data4 is None:
         data2 = rospy.wait_for_message('/mavros2/global_position/rel_alt', Float64, timeout=5)
         data3 = rospy.wait_for_message('/mavros3/global_position/rel_alt', Float64, timeout=5)
         data4 = rospy.wait_for_message('/mavros4/global_position/rel_alt', Float64, timeout=5)
-    except Exception  as e:
-	print str(e)
+    except:
         pass
 
 print "wait for service"
