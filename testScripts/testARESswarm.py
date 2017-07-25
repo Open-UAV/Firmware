@@ -11,7 +11,8 @@ from gazebo_msgs.msg import ModelStates
 from mavros_msgs.srv import CommandBool, CommandTOL, SetMode
 from geometry_msgs.msg import PoseStamped,Pose,Vector3,Twist,TwistStamped
 from std_srvs.srv import Empty
-NUM_UAV= int(sys.argv[0])
+NUM_UAV= 0
+print sys.argv[0]
 #Setup
 process = subprocess.Popen(["/bin/bash","/root/src/Firmware/Tools/swarm.sh",],stdout=subprocess.PIPE)
 process.wait()
