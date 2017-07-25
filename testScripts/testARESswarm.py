@@ -44,40 +44,9 @@ for uavID in range(0,NUM_UAV):
     start_pos[uavID].pose.position.z = startPosZ[uavID]
     print uavID
 
-start_pos1 = PoseStamped()
-start_pos1.pose.position.x = 0
-start_pos1.pose.position.y = 0
-start_pos1.pose.position.z = 10
-
-#Comm for drone 2
-local_pos2 = rospy.Publisher('mavros2/setpoint_position/local',PoseStamped,queue_size=10)
-mode_proxy2 = rospy.ServiceProxy('mavros2/set_mode', SetMode)
-arm_proxy2 = rospy.ServiceProxy('mavros2/cmd/arming', CommandBool)
-
-start_pos2 = PoseStamped()
-start_pos2.pose.position.x = 10
-start_pos2.pose.position.y = 0
-start_pos2.pose.position.z = 5
-
-#Comm for drone 3
-local_pos3 = rospy.Publisher('mavros3/setpoint_position/local',PoseStamped,queue_size=10)
-mode_proxy3 = rospy.ServiceProxy('mavros3/set_mode', SetMode)
-arm_proxy3 = rospy.ServiceProxy('mavros3/cmd/arming', CommandBool)
-
-start_pos3 = PoseStamped()
-start_pos3.pose.position.x = 10
-start_pos3.pose.position.y = 10
-start_pos3.pose.position.z = 10
-
-#Comm for drone 4
-local_pos4 = rospy.Publisher('mavros4/setpoint_position/local',PoseStamped,queue_size=10)
-mode_proxy4 = rospy.ServiceProxy('mavros4/set_mode', SetMode)
-arm_proxy4 = rospy.ServiceProxy('mavros4/cmd/arming', CommandBool)
-
-start_pos4 = PoseStamped()
-start_pos4.pose.position.x = -10
-start_pos4.pose.position.y = -10
-start_pos4.pose.position.z = 5
+for uavID in range(0, NUM_UAV):
+    for i in range(0,100):
+        local_pos[uavID].publish(start_pos[uavID])
 
 print "Waiting for mavros..."
 data1 = None
