@@ -32,10 +32,17 @@ print ("Gazebo launched!")
 gzclient_pid = 0
 
 
-#Comm for drone 1
-local_pos1 = rospy.Publisher('mavros1/setpoint_position/local',PoseStamped,queue_size=10)
-mode_proxy1 = rospy.ServiceProxy('mavros1/set_mode', SetMode)
-arm_proxy1 = rospy.ServiceProxy('mavros1/cmd/arming', CommandBool)
+for uavID in range(0,NUM_UAV):
+    local_pos[uavID] = rospy.Publisher(mavrosTopicStringRoot(uavID) + '/setpoint_position/local', PoseStamped, queue_size=10)
+    mode_proxy[uavID] = rospy.ServiceProxy(mavrosTopicStringRoot(uavID) + '/set_mode', SetMode)
+    arm_proxy[uavID] = rospy.ServiceProxy(mavrosTopicStringRoot(uavID) + '/cmd/arming', CommandBool)
+    pos_sub[uavID] = rospy.Subscriber(mavrosTopicStringRoot(uavID) + '/local_position/pose', PoseStamped, callback=pos_cb)
+
+    start_pos[uavID] = PoseStamped()
+    start_pos[uavID].pose.position.x = startPosX[uavID]
+    start_pos[uavID].pose.position.y = startPosY[uavID]
+    start_pos[uavID].pose.position.z = startPosZ[uavID]
+    print uavID
 
 start_pos1 = PoseStamped()
 start_pos1.pose.position.x = 0
