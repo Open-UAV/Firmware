@@ -14,10 +14,11 @@ from std_srvs.srv import Empty
 
 NUM_UAV=int(sys.argv[1])
 #Setup
-process = subprocess.Popen(["/bin/bash","/root/src/Firmware/Tools/swarm.sh",],stdout=subprocess.PIPE)
+process = subprocess.Popen(["/bin/bash","/root/src/Firmware/Tools/swarm.sh","4"],stdout=subprocess.PIPE)
 process.wait()
 for line in process.stdout:
 	print line
+
 launchfile = "posix_sitl_multi_tmp.launch"
 #subprocess.Popen("roscore")
 #print ("Roscore launched!")
@@ -31,9 +32,9 @@ subprocess.Popen(["roslaunch",fullpath])
 print ("Gazebo launched!")
 
 gzclient_pid = 0
-startPosX = [5, 4, 4]
-startPosY = [0, 0, 0]
-startPosZ = [5, 5, 5]
+startPosX = [5, 4, 4, 2, 3]
+startPosY = [0, 0, 0, 2, 3]
+startPosZ = [5, 5, 5, 5, 5]
 local_pos = [None for i in range(NUM_UAV)]
 mode_proxy = [None for i in range(NUM_UAV)]
 arm_proxy = [None for i in range(NUM_UAV)]
