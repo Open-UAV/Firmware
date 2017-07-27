@@ -35,9 +35,6 @@ startPosZ = [5, 5, 5, 5, 5]
 rospy.init_node('multi', anonymous=True)
 
 
-def mavrosTopicStringRoot(uavID=0):
-    return ('mavros' + str(uavID+1))
-
 for uavID in range(0,NUM_UAV):
     local_pos[uavID] = rospy.Publisher(mavrosTopicStringRoot(uavID) + '/setpoint_position/local', PoseStamped, queue_size=10)
     mode_proxy[uavID] = rospy.ServiceProxy(mavrosTopicStringRoot(uavID) + '/set_mode', SetMode)
@@ -70,7 +67,7 @@ success = []
 for uavID in range(0, NUM_UAV):
     try:
         print mode_proxy[uavID]
-        success[uavID] = mode_proxy[uavID](1,'OFFBOARD')
+        success[uavID] = mode_proxy[uavID](0,'OFFBOARD')
         print 'mode '
         print success[uavID]
     except rospy.ServiceException, e:
