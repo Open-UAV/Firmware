@@ -28,9 +28,9 @@ start_pos = [None for i in range(NUM_UAV)]
 def mavrosTopicStringRoot(uavID=0):
     return ('mavros' + str(uavID+1))
 
-startPosX = [5, 4, 4]
-startPosY = [0, 0, 0]
-startPosZ = [5, 5, 5]
+startPosX = [5, 4, 4, 2, 3]
+startPosY = [0, 0, 0, 2, 3]
+startPosZ = [5, 5, 5, 5, 5]
 
 rospy.init_node('multi', anonymous=True)
 
@@ -84,6 +84,7 @@ print "Main Running"
 while not rospy.is_shutdown():
     for uavID in range(0, NUM_UAV):
         local_pos[uavID].publish(start_pos[uavID])
+        print start_pos[uavID]
     rate.sleep()
 
 
