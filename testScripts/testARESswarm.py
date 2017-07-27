@@ -71,6 +71,7 @@ while None in data:
             data[uavID] = rospy.wait_for_message(mavrosTopicStringRoot(uavID) + '/global_position/rel_alt', Float64, timeout=5)
         except:
             pass
+
 for uavID in range(0, NUM_UAV):
     print "wait for service"
     rospy.wait_for_service(mavrosTopicStringRoot(uavID) + '/set_mode')
@@ -98,15 +99,7 @@ for uavID in range(0, NUM_UAV):
     print 'arming' + mavrosTopicStringRoot(uavID)
     rospy.wait_for_service(mavrosTopicStringRoot(uavID) + '/cmd/arming')
 
-success = []
-for uavID in range(0, NUM_UAV):
-    try:
-       success[uavID] = arm_proxy[uavID](True)
-       print 'arming '
-       print success[uavID]
-    except rospy.ServiceException, e:
-       print ("mavros1/set_mode service call failed: %s"%e)
-       print "armed"
+
 
 #Main method
 rate = rospy.Rate(10)
@@ -117,3 +110,12 @@ while not rospy.is_shutdown():
             local_pos[uavID].publish(start_pos[uavID])
     rate.sleep()
 
+success = []
+for uavID in range(0, NUM_UAV):
+    try:
+       success[uavID] = arm_proxy[uavID](True)
+       print 'arming '
+       print success[uavID]
+    except rospy.ServiceException, e:
+       print ("mavros1/set_mode service call failed: %s"%e)
+       print "armed"
