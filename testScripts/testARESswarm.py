@@ -12,7 +12,7 @@ from mavros_msgs.srv import CommandBool, CommandTOL, SetMode
 from geometry_msgs.msg import PoseStamped,Pose,Vector3,Twist,TwistStamped
 from std_srvs.srv import Empty
 
-NUM_UAV=int(sys.argv[1])
+NUM_UAV=5
 #Setup
 process = subprocess.Popen(["/bin/bash","/root/src/Firmware/Tools/swarm.sh","5"],stdout=subprocess.PIPE)
 process.wait()
@@ -106,8 +106,7 @@ rate = rospy.Rate(10)
 print "Main Running"
 while not rospy.is_shutdown():
     for uavID in range(0, NUM_UAV):
-        for i in range(0, 100):
-            local_pos[uavID].publish(start_pos[uavID])
+        local_pos[uavID].publish(start_pos[uavID])
     rate.sleep()
 
 success = []
