@@ -14,7 +14,7 @@ from std_srvs.srv import Empty
 
 NUM_UAV=int(sys.argv[1])
 #Setup
-process = subprocess.Popen(["/bin/bash","/root/src/Firmware/Tools/swarm.sh","4"],stdout=subprocess.PIPE)
+process = subprocess.Popen(["/bin/bash","/root/src/Firmware/Tools/swarm.sh","5"],stdout=subprocess.PIPE)
 process.wait()
 for line in process.stdout:
 	print line
@@ -76,8 +76,8 @@ for uavID in range(0, NUM_UAV):
     rospy.wait_for_service(mavrosTopicStringRoot(uavID) + '/set_mode')
     print "got service"
 
+success = []
 for uavID in range(0, NUM_UAV):
-
     try:
         print mode_proxy[uavID]
         success[uavID] = mode_proxy[uavID](1,'OFFBOARD')
@@ -98,6 +98,7 @@ for uavID in range(0, NUM_UAV):
     print 'arming' + mavrosTopicStringRoot(uavID)
     rospy.wait_for_service(mavrosTopicStringRoot(uavID) + '/cmd/arming')
 
+success = []
 for uavID in range(0, NUM_UAV):
     try:
        success[uavID] = arm_proxy[uavID](True)
