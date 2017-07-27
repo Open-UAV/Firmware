@@ -4,18 +4,21 @@ import subprocess
 import os
 import sys
 
+from sensor_msgs.msg import LaserScan, NavSatFix
 from std_msgs.msg import Float64;
+from gazebo_msgs.msg import ModelStates
 
 from mavros_msgs.srv import CommandBool, CommandTOL, SetMode
 from geometry_msgs.msg import PoseStamped,Pose,Vector3,Twist,TwistStamped
 from std_srvs.srv import Empty
 
-NUM_UAV=5
+NUM_UAV=int(sys.argv[1])
 #Setup
-process = subprocess.Popen(["/bin/bash","/root/src/Firmware/Tools/swarm.sh","5"],stdout=subprocess.PIPE)
+process = subprocess.Popen(["/bin/bash","/root/src/Firmware/Tools/swarm.sh","4"],stdout=subprocess.PIPE)
 process.wait()
 for line in process.stdout:
 	print line
+
 launchfile = "posix_sitl_multi_tmp.launch"
 #subprocess.Popen("roscore")
 #print ("Roscore launched!")
@@ -29,9 +32,9 @@ subprocess.Popen(["roslaunch",fullpath])
 print ("Gazebo launched!")
 
 gzclient_pid = 0
-startPosX = [5, 4, 3, 2,1]
-startPosY = [0, 0, 0, 0, 0]
-startPosZ = [5, 5, 5,5,5]
+startPosX = [5, 4, 4, 2, 3]
+startPosY = [0, 0, 0, 2, 3]
+startPosZ = [5, 5, 5, 5, 5]
 local_pos = [None for i in range(NUM_UAV)]
 mode_proxy = [None for i in range(NUM_UAV)]
 arm_proxy = [None for i in range(NUM_UAV)]
@@ -72,8 +75,6 @@ for uavID in range(0, NUM_UAV):
     print "wait for service"
     rospy.wait_for_service(mavrosTopicStringRoot(uavID) + '/set_mode')
     print "got service"
-
-success = []
 
 for uavID in range(0, NUM_UAV):
 
