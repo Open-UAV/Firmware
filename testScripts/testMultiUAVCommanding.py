@@ -63,7 +63,7 @@ for uavID in range(0, NUM_UAV):
     rospy.wait_for_service(mavrosTopicStringRoot(uavID) + '/set_mode')
     print "got service"
 
-success = []
+success = [None for i in range(NUM_UAV)]
 for uavID in range(0, NUM_UAV):
     try:
         print mode_proxy[uavID]
