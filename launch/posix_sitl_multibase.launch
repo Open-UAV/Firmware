@@ -50,7 +50,7 @@
 
 
     <node pkg="mavros" type="mavros_node" name="mavros1" required="true" clear_params="true" output="$(arg log_output)">
-		<param name="fcu_url" value="udp://:141410@localhost:14157"/>
+		<param name="fcu_url" value="udp://:14140@localhost:14157"/>
 		<param name="gcs_url" value="" />
 		<param name="target_system_id" value="1" />
 		<param name="target_component_id" value="1" />
