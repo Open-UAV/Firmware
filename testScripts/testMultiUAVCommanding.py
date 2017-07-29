@@ -18,17 +18,22 @@ def pos_cb(msg):
     cur_pose = msg
 
 def state_cb(msg):
-        for uavID in range(0, NUM_UAV):
+	if(msg.armed == False):
+		print "Standby. Arming!!"
+		for uavID in range(0, NUM_UAV):
+			try:
+                                arm_proxy[uavID](True)
+                        except rospy.ServiceException, e:
+                                print ("mavros1/set_mode service call failed: %s"%e)
 
-                try:
-                        print mode_proxy[uavID](0,'OFFBOARD')
-                except rospy.ServiceException, e:
-                        print ("mavros/set_mode service call failed: %s"%e)
+	if(msg.mode != "OFFBOARD"):
+		print "Attempting OFFBOARD mode."
+		for uavID in range(0, NUM_UAV):
+        	        try:
+                	        print mode_proxy[uavID](0,'OFFBOARD')
+                	except rospy.ServiceException, e:
+                        	print ("mavros/set_mode service call failed: %s"%e)
        
-		try:
-			arm_proxy[uavID](True)
-    		except rospy.ServiceException, e:
-			print ("mavros1/set_mode service call failed: %s"%e)
 
 
 local_pos = [None for i in range(NUM_UAV)]
@@ -63,26 +68,9 @@ for uavID in range(0,NUM_UAV):
     print uavID
 
 
-data = [None for i in range(NUM_UAV)]
-
-while None in data:
-    for uavID in range(0, NUM_UAV):
-        try:
-            print mavrosTopicStringRoot(uavID) + '/global_position/rel_alt'
-            data[uavID] = rospy.wait_for_message(mavrosTopicStringRoot(uavID) + '/global_position/rel_alt', Float64, timeout=5)
-        except:
-            pass
-
-for uavID in range(0, NUM_UAV):
-    rospy.wait_for_service(mavrosTopicStringRoot(uavID) + '/cmd/arming')
-
-for uavID in range(0, NUM_UAV):
-    rospy.wait_for_service(mavrosTopicStringRoot(uavID) + '/set_mode')
-
-        
 
 #Main method
-rate = rospy.Rate(200)
+rate = rospy.Rate(100)
 print "Main Running"
 while not rospy.is_shutdown():
     for uavID in range(0, NUM_UAV):
