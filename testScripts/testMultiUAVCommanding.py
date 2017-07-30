@@ -95,7 +95,7 @@ while not rospy.is_shutdown():
 	 	if dist < distThreshold:
          		waypointIndex[uavID] += 1
 
-	 	if waypointIndex[uavID] is NUM_STPNTS:
+	 	if waypointIndex[uavID] > NUM_STPNTS:
                 	waypointIndex[uavID] = NUM_STPNTS
                 	sim_ctr += 1
 	
