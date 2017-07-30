@@ -13,7 +13,7 @@ from geometry_msgs.msg import PoseStamped,Pose,PoseArray,Vector3,Twist,TwistStam
 from std_srvs.srv import Empty
 import math 
 NUM_UAV=int(sys.argv[1])
-NUM_STPNTS = 7
+NUM_STPNTS = 3
 
 def state_cb(msg):
 	if(msg.armed == False):
@@ -61,10 +61,12 @@ def formation_cb(msg,args):
 	global next_pos
 	global cur_pos
 	global waypointIndex 
+	global NUM_STPNTS
 	if cur_pos[args] is not None:
 		next_pos[args]= PoseStamped()
 		next_pos[args].header = cur_pos[args].header
 		next_pos[args].pose = msg.poses[waypointIndex[args]]
+		NUM_STPNTS = len(msg.poses)
 
 for uavID in range(0,NUM_UAV):
     local_pos[uavID] = rospy.Publisher(mavrosTopicStringRoot(uavID) + '/setpoint_position/local', PoseStamped, queue_size=10)
@@ -95,8 +97,8 @@ while not rospy.is_shutdown():
 	 	if dist < distThreshold:
          		waypointIndex[uavID] += 1
 
-	 	if waypointIndex[uavID] > NUM_STPNTS:
-                	waypointIndex[uavID] = NUM_STPNTS
+	 	if waypointIndex[uavID] > NUM_STPNTS-1:
+                	waypointIndex[uavID] = NUM_STPNTS-1
                 	sim_ctr += 1
 	
     	 	local_pos[uavID].publish(next_pos[uavID])
