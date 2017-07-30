@@ -9,13 +9,16 @@ from gazebo_msgs.msg import ModelStates
 from mavros_msgs.msg import State
 import sys 
 from mavros_msgs.srv import CommandBool, CommandTOL, SetMode
-from geometry_msgs.msg import PoseStamped,Pose,Vector3,Twist,TwistStamped
+from geometry_msgs.msg import PoseStamped,Pose,PoseArray,Vector3,Twist,TwistStamped
 from std_srvs.srv import Empty
 NUM_UAV=int(sys.argv[1])
 cur_pose = PoseStamped()
 def pos_cb(msg):
     global cur_pose
     cur_pose = msg
+
+def formation_cb(msg):
+    print msg
 
 def state_cb(msg):
 	if(msg.armed == False):
@@ -30,7 +33,7 @@ def state_cb(msg):
 		print "Attempting OFFBOARD mode."
 		for uavID in range(0, NUM_UAV):
         	        try:
-                	        print mode_proxy[uavID](0,'OFFBOARD')
+                	        mode_proxy[uavID](0,'OFFBOARD')
                 	except rospy.ServiceException, e:
                         	print ("mavros/set_mode service call failed: %s"%e)
        
@@ -40,6 +43,7 @@ local_pos = [None for i in range(NUM_UAV)]
 mode_proxy = [None for i in range(NUM_UAV)]
 arm_proxy = [None for i in range(NUM_UAV)]
 pos_sub = [None for i in range(NUM_UAV)]
+formation_setpoints = [None for i in range(NUM_UAV)]
 start_pos = [None for i in range(NUM_UAV)]
 mavros_state = [None for i in range(NUM_UAV)]
 
@@ -47,9 +51,9 @@ mavros_state = [None for i in range(NUM_UAV)]
 def mavrosTopicStringRoot(uavID=0):
     return ('mavros' + str(uavID+1))
 
-startPosX = [5, 4, 4, 2, 3]
-startPosY = [0, 0, 0, 2, 3]
-startPosZ = [5, 5, 5, 5, 5]
+startPosX = [1, 0, 1, 0, 1]
+startPosY = [0, 1, 2, 3, 4]
+startPosZ = [3, 3, 3, 3, 3]
 
 rospy.init_node('multi-', anonymous=True)
 
@@ -59,6 +63,8 @@ for uavID in range(0,NUM_UAV):
     mode_proxy[uavID] = rospy.ServiceProxy(mavrosTopicStringRoot(uavID) + '/set_mode', SetMode)
     arm_proxy[uavID] = rospy.ServiceProxy(mavrosTopicStringRoot(uavID) + '/cmd/arming', CommandBool)
     pos_sub[uavID] = rospy.Subscriber(mavrosTopicStringRoot(uavID) + '/local_position/pose', PoseStamped, callback=pos_cb)
+    formation_setpoints[uavID] = rospy.Subscriber(mavrosTopicStringRoot(uavID) + '/formation_setpoints', PoseArray, callback=formation_cb)
+
     mavros_state[uavID] = rospy.Subscriber(mavrosTopicStringRoot(uavID) + '/state', State, callback=state_cb)
 
     start_pos[uavID] = PoseStamped()
