@@ -321,6 +321,7 @@ private:
 	int32_t			_rssi_pwm_chan; ///< RSSI PWM input channel
 	int32_t			_rssi_pwm_max; ///< max RSSI input on PWM channel
 	int32_t			_rssi_pwm_min; ///< min RSSI input on PWM channel
+	int32_t			_thermal_control; ///< thermal control state
 	bool			_analog_rc_rssi_stable; ///< true when analog RSSI input is stable
 	float			_analog_rc_rssi_volt; ///< analog RSSI voltage
 
@@ -558,6 +559,7 @@ PX4IO::PX4IO(device::Device *interface) :
 	_rssi_pwm_chan(0),
 	_rssi_pwm_max(0),
 	_rssi_pwm_min(0),
+	_thermal_control(-1),
 	_analog_rc_rssi_stable(false),
 	_analog_rc_rssi_volt(-1.0f),
 	_last_throttle(0.0f),
@@ -683,12 +685,12 @@ PX4IO::init()
 
 	/* if the error still persists after timing out, we give up */
 	if (protocol == _io_reg_get_error) {
-		mavlink_and_console_log_emergency(&_mavlink_log_pub, "Failed to communicate with IO, abort.");
+		mavlink_log_emergency(&_mavlink_log_pub, "Failed to communicate with IO, abort.");
 		return -1;
 	}
 
 	if (protocol != PX4IO_PROTOCOL_VERSION) {
-		mavlink_and_console_log_emergency(&_mavlink_log_pub, "IO protocol/firmware mismatch, abort.");
+		mavlink_log_emergency(&_mavlink_log_pub, "IO protocol/firmware mismatch, abort.");
 		return -1;
 	}
 
@@ -755,7 +757,7 @@ PX4IO::init()
 		/* get a status update from IO */
 		io_get_status();
 
-		mavlink_and_console_log_emergency(&_mavlink_log_pub, "RECOVERING FROM FMU IN-AIR RESTART");
+		mavlink_log_emergency(&_mavlink_log_pub, "RECOVERING FROM FMU IN-AIR RESTART");
 
 		/* WARNING: COMMANDER app/vehicle status must be initialized.
 		 * If this fails (or the app is not started), worst-case IO
@@ -784,7 +786,7 @@ PX4IO::init()
 
 			/* abort after 5s */
 			if ((hrt_absolute_time() - try_start_time) / 1000 > 3000) {
-				mavlink_and_console_log_emergency(&_mavlink_log_pub, "Failed to recover from in-air restart (1), abort");
+				mavlink_log_emergency(&_mavlink_log_pub, "Failed to recover from in-air restart (1), abort");
 				return 1;
 			}
 
@@ -819,6 +821,7 @@ PX4IO::init()
 		cmd.param5 = 0;
 		cmd.param6 = 0;
 		cmd.param7 = 0;
+		cmd.timestamp = hrt_absolute_time();
 		cmd.command = vehicle_command_s::VEHICLE_CMD_COMPONENT_ARM_DISARM;
 
 		/* ask to confirm command */
@@ -840,7 +843,7 @@ PX4IO::init()
 
 			/* abort after 5s */
 			if ((hrt_absolute_time() - try_start_time) / 1000 > 2000) {
-				mavlink_and_console_log_emergency(&_mavlink_log_pub, "Failed to recover from in-air restart (2), abort");
+				mavlink_log_emergency(&_mavlink_log_pub, "Failed to recover from in-air restart (2), abort");
 				return 1;
 			}
 
@@ -887,7 +890,7 @@ PX4IO::init()
 			ret = io_set_rc_config();
 
 			if (ret != OK) {
-				mavlink_and_console_log_critical(&_mavlink_log_pub, "IO RC config upload fail");
+				mavlink_log_critical(&_mavlink_log_pub, "IO RC config upload fail");
 				return ret;
 			}
 		}
@@ -920,7 +923,7 @@ PX4IO::init()
 	_task = px4_task_spawn_cmd("px4io",
 				   SCHED_DEFAULT,
 				   SCHED_PRIORITY_ACTUATOR_OUTPUTS,
-				   1400,
+				   1500,
 				   (main_t)&PX4IO::task_main_trampoline,
 				   nullptr);
 
@@ -1115,7 +1118,7 @@ PX4IO::task_main()
 				int pret = io_reg_set(PX4IO_PAGE_SETUP, PX4IO_P_SETUP_VBATT_SCALE, &scaling, 1);
 
 				if (pret != OK) {
-					mavlink_and_console_log_critical(&_mavlink_log_pub, "IO vscale upload failed");
+					mavlink_log_critical(&_mavlink_log_pub, "IO vscale upload failed");
 				}
 
 				/* send RC throttle failsafe value to IO */
@@ -1132,7 +1135,7 @@ PX4IO::task_main()
 						pret = io_reg_set(PX4IO_PAGE_SETUP, PX4IO_P_SETUP_RC_THR_FAILSAFE_US, &failsafe_thr, 1);
 
 						if (pret != OK) {
-							mavlink_and_console_log_critical(&_mavlink_log_pub, "failsafe upload failed, FS: %d us", (int)failsafe_thr);
+							mavlink_log_critical(&_mavlink_log_pub, "failsafe upload failed, FS: %d us", (int)failsafe_thr);
 						}
 					}
 				}
@@ -1157,6 +1160,30 @@ PX4IO::task_main()
 				param_get(param_find("RC_RSSI_PWM_MAX"), &_rssi_pwm_max);
 				param_get(param_find("RC_RSSI_PWM_MIN"), &_rssi_pwm_min);
 
+				param_t thermal_param = param_find("SENS_EN_THERMAL");
+
+				if (thermal_param != PARAM_INVALID) {
+
+					int32_t thermal_p;
+					param_get(thermal_param, &thermal_p);
+
+					if (thermal_p != _thermal_control || _param_update_force) {
+
+						_thermal_control = thermal_p;
+						/* set power management state for thermal */
+						uint16_t tctrl;
+
+						if (_thermal_control < 0) {
+							tctrl = PX4IO_THERMAL_IGNORE;
+
+						} else {
+							tctrl = PX4IO_THERMAL_OFF;
+						}
+
+						ret = io_reg_set(PX4IO_PAGE_SETUP, PX4IO_P_SETUP_THERMAL, tctrl);
+					}
+				}
+
 				/*
 				 * Set invert mask for PWM outputs (does not apply to S.Bus)
 				 */
@@ -1177,6 +1204,30 @@ PX4IO::task_main()
 				}
 
 				(void)io_reg_set(PX4IO_PAGE_SETUP, PX4IO_P_SETUP_PWM_REVERSE, pwm_invert_mask);
+
+				// update trim values
+				struct pwm_output_values pwm_values;
+
+//				memset(&pwm_values, 0, sizeof(pwm_values));
+//				ret = io_reg_get(PX4IO_PAGE_CONTROL_TRIM_PWM, 0, (uint16_t *)pwm_values.values, _max_actuators);
+
+				for (unsigned i = 0; i < _max_actuators; i++) {
+					char pname[16];
+					float pval;
+
+					/* fetch the trim values from parameters */
+					sprintf(pname, "PWM_MAIN_TRIM%u", i + 1);
+					param_t param_h = param_find(pname);
+
+					if (param_h != PARAM_INVALID) {
+
+						param_get(param_h, &pval);
+						pwm_values.values[i] = (int16_t)(10000 * pval);
+					}
+				}
+
+				/* copy values to registers in IO */
+				ret = io_reg_set(PX4IO_PAGE_CONTROL_TRIM_PWM, 0, pwm_values.values, _max_actuators);
 
 				float param_val;
 				param_t parm_handle;
@@ -1243,6 +1294,22 @@ PX4IO::task_main()
 						(void)io_reg_modify(PX4IO_PAGE_SETUP, PX4IO_P_SETUP_FEATURES,
 								    (PX4IO_P_SETUP_FEATURES_SBUS1_OUT | PX4IO_P_SETUP_FEATURES_SBUS2_OUT), 0);
 					}
+				}
+
+				/* thrust to pwm modelling factor */
+				parm_handle = param_find("THR_MDL_FAC");
+
+				if (parm_handle != PARAM_INVALID) {
+					param_get(parm_handle, &param_val);
+					(void)io_reg_set(PX4IO_PAGE_SETUP, PX4IO_P_SETUP_THR_MDL_FAC, FLOAT_TO_REG(param_val));
+				}
+
+				/* maximum motor pwm slew rate */
+				parm_handle = param_find("MOT_SLEW_MAX");
+
+				if (parm_handle != PARAM_INVALID) {
+					param_get(parm_handle, &param_val);
+					(void)io_reg_set(PX4IO_PAGE_SETUP, PX4IO_P_SETUP_MOTOR_SLEW_MAX, FLOAT_TO_REG(param_val));
 				}
 
 				// Also trigger param update in Battery instance.
@@ -1396,11 +1463,11 @@ PX4IO::io_set_arming_state()
 
 		_armed = armed.armed;
 
-		if (armed.lockdown && !_lockdown_override) {
+		if ((armed.lockdown || armed.manual_lockdown) && !_lockdown_override) {
 			set |= PX4IO_P_SETUP_ARMING_LOCKDOWN;
 			_lockdown_override = true;
 
-		} else if (!armed.lockdown && _lockdown_override) {
+		} else if (!(armed.lockdown || armed.manual_lockdown) && _lockdown_override) {
 			clear |= PX4IO_P_SETUP_ARMING_LOCKDOWN;
 			_lockdown_override = false;
 		}
@@ -1610,7 +1677,7 @@ PX4IO::io_set_rc_config()
 
 		/* check the IO initialisation flag */
 		if (!(io_reg_get(PX4IO_PAGE_STATUS, PX4IO_P_STATUS_FLAGS) & PX4IO_P_STATUS_FLAGS_INIT_OK)) {
-			mavlink_and_console_log_critical(&_mavlink_log_pub, "config for RC%u rejected by IO", i + 1);
+			mavlink_log_critical(&_mavlink_log_pub, "config for RC%u rejected by IO", i + 1);
 			break;
 		}
 
@@ -1692,7 +1759,7 @@ PX4IO::dsm_bind_ioctl(int dsmMode)
 		}
 
 	} else {
-		mavlink_log_info(&_mavlink_log_pub, "[IO] system armed, bind request rejected");
+		mavlink_log_info(&_mavlink_log_pub, "[IO] safety off, bind request rejected");
 	}
 }
 
@@ -1731,7 +1798,9 @@ PX4IO::io_handle_battery(uint16_t vbatt, uint16_t ibatt)
 	float current_a = ibatt * (3.3f / 4096.0f) * _battery_amp_per_volt;
 	current_a += _battery_amp_bias;
 
-	_battery.updateBatteryStatus(timestamp, voltage_v, current_a, _last_throttle, _armed, &battery_status);
+	_battery.updateBatteryStatus(timestamp, voltage_v, current_a, true, true, 0,
+				     _last_throttle,
+				     _armed, &battery_status);
 
 	/* the announced battery status would conflict with the simulated battery status in HIL */
 	if (!(_pub_blocked)) {
@@ -1988,9 +2057,7 @@ PX4IO::io_publish_pwm_outputs()
 	/* get mixer status flags from IO */
 	uint16_t mixer_status;
 	ret = io_reg_get(PX4IO_PAGE_STATUS, PX4IO_P_STATUS_MIXER, &mixer_status, sizeof(mixer_status) / sizeof(uint16_t));
-	motor_limits.lower_limit = mixer_status & PX4IO_P_STATUS_MIXER_LOWER_LIMIT;
-	motor_limits.upper_limit = mixer_status & PX4IO_P_STATUS_MIXER_UPPER_LIMIT;
-	motor_limits.yaw = mixer_status & PX4IO_P_STATUS_MIXER_YAW_LIMIT;
+	motor_limits.saturation_status = mixer_status;
 
 	if (ret != OK) {
 		return ret;
@@ -2465,6 +2532,18 @@ PX4IO::print_status(bool extended_status)
 		printf(" %u", io_reg_get(PX4IO_PAGE_DISARMED_PWM, i));
 	}
 
+	/* IMU heater (Pixhawk 2.1) */
+	uint16_t heater_level = io_reg_get(PX4IO_PAGE_SETUP, PX4IO_P_SETUP_THERMAL);
+
+	if (heater_level != UINT16_MAX) {
+		if (heater_level == PX4IO_THERMAL_OFF) {
+			printf("\nIMU heater off", heater_level);
+
+		} else {
+			printf("\nIMU heater level %d", heater_level);
+		}
+	}
+
 	printf("\n");
 }
 
@@ -2634,6 +2713,33 @@ PX4IO::ioctl(file *filep, int cmd, unsigned long arg)
 			pwm->channel_count = _max_actuators;
 
 			ret = io_reg_get(PX4IO_PAGE_CONTROL_MAX_PWM, 0, pwm->values, _max_actuators);
+
+			if (ret != OK) {
+				ret = -EIO;
+			}
+		}
+
+		break;
+
+	case PWM_SERVO_SET_TRIM_PWM: {
+			struct pwm_output_values *pwm = (struct pwm_output_values *)arg;
+
+			if (pwm->channel_count > _max_actuators)
+				/* fail with error */
+			{
+				return -E2BIG;
+			}
+
+			/* copy values to registers in IO */
+			ret = io_reg_set(PX4IO_PAGE_CONTROL_TRIM_PWM, 0, pwm->values, pwm->channel_count);
+			break;
+		}
+
+	case PWM_SERVO_GET_TRIM_PWM: {
+			struct pwm_output_values *pwm = (struct pwm_output_values *)arg;
+			pwm->channel_count = _max_actuators;
+
+			ret = io_reg_get(PX4IO_PAGE_CONTROL_TRIM_PWM, 0, pwm->values, _max_actuators);
 
 			if (ret != OK) {
 				ret = -EIO;
@@ -3299,7 +3405,6 @@ checkcrc(int argc, char *argv[])
 		exit(1);
 	}
 
-	warnx("CRCs match");
 	exit(0);
 }
 
@@ -3425,6 +3530,8 @@ test(void)
 			}
 		}
 
+		usleep(250);
+
 		/* readback servo values */
 		for (unsigned i = 0; i < servo_count; i++) {
 			servo_position_t value;
@@ -3434,7 +3541,7 @@ test(void)
 			}
 
 			if (value != servos[i]) {
-				errx(1, "servo %u readback error, got %hu expected %hu", i, value, servos[i]);
+				warnx("servo %u readback error, got %hu expected %hu", i, value, servos[i]);
 			}
 		}
 
@@ -3604,27 +3711,15 @@ px4io_main(int argc, char *argv[])
 		}
 
 		PX4IO_Uploader *up;
-		const char *fn[4];
 
-		/* work out what we're uploading... */
+		/* Assume we are using default paths */
+
+		const char *fn[4] = PX4IO_FW_SEARCH_PATHS;
+
+		/* Override defaults if a path is passed on command line */
 		if (argc > 2) {
 			fn[0] = argv[2];
 			fn[1] = nullptr;
-
-		} else {
-#if defined(CONFIG_ARCH_BOARD_PX4FMU_V1)
-			fn[0] = "/etc/extras/px4io-v1.bin";
-			fn[1] =	"/fs/microsd/px4io1.bin";
-			fn[2] =	"/fs/microsd/px4io.bin";
-			fn[3] =	nullptr;
-#elif defined(CONFIG_ARCH_BOARD_PX4FMU_V2)
-			fn[0] = "/etc/extras/px4io-v2.bin";
-			fn[1] =	"/fs/microsd/px4io2.bin";
-			fn[2] =	"/fs/microsd/px4io.bin";
-			fn[3] =	nullptr;
-#else
-#error "unknown board"
-#endif
 		}
 
 		up = new PX4IO_Uploader;

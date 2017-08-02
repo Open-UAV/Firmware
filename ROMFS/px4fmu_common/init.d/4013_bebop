@@ -3,6 +3,15 @@
 # @name Parrot Bebop Frame
 #
 # @type Quadrotor x
+# @class Copter
+#
+# @board px4fmu-v1 exclude
+# @board px4fmu-v2 exclude
+# @board px4fmu-v3 exclude
+# @board px4fmu-v4 exclude
+# @board px4fmu-v4pro exclude
+# @board px4fmu-v5 exclude
+# @board aerofc-v1 exclude
 #
 # @maintainer Michael Schaeuble
 #

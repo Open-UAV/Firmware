@@ -179,6 +179,21 @@ PARAM_DEFINE_FLOAT(COM_EF_TIME, 10.0f);
 PARAM_DEFINE_FLOAT(COM_RC_LOSS_T, 0.5f);
 
 /**
+ * RC stick override threshold
+ *
+ * If an RC stick is moved more than by this amount the system will interpret this as
+ * override request by the pilot.
+ *
+ * @group Commander
+ # @unit %
+ * @min 5
+ * @max 40
+ * @decimal 0
+ * @increment 0.05
+ */
+PARAM_DEFINE_FLOAT(COM_RC_STICK_OV, 12.0f);
+
+/**
  * Home set horizontal threshold
  *
  * The home position will be set if the estimated positioning accuracy is below the threshold.
@@ -205,18 +220,6 @@ PARAM_DEFINE_FLOAT(COM_HOME_H_T, 5.0f);
  * @increment 0.5
  */
 PARAM_DEFINE_FLOAT(COM_HOME_V_T, 10.0f);
-
-/**
- * Autosaving of params
- *
- * If not equal to zero the commander will automatically save parameters to persistent storage once changed.
- * Default is on, as the interoperability with currently deployed GCS solutions depends on parameters
- * being sticky. Developers can default it to off.
- *
- * @group Commander
- * @boolean
- */
-PARAM_DEFINE_INT32(COM_AUTOS_PAR, 1);
 
 /**
  * RC control input mode
@@ -251,6 +254,10 @@ PARAM_DEFINE_INT32(COM_RC_ARM_HYST, 1000);
  *
  * A non-zero, positive value specifies the time-out period in seconds after which the vehicle will be
  * automatically disarmed in case a landing situation has been detected during this period.
+ *
+ * The vehicle will also auto-disarm right after arming if it has not even flown, however the time
+ * will be longer by a factor of 5.
+ *
  * A value of zero means that automatic disarming is disabled.
  *
  * @group Commander
@@ -268,12 +275,23 @@ PARAM_DEFINE_INT32(COM_DISARM_LAND, 0);
  * The default allows to arm the vehicle without GPS signal.
  *
  * @group Commander
- * @min 0
- * @max 1
- * @value 0 Don't allow arming without GPS
- * @value 1 Allow arming without GPS
+ * @boolean
  */
 PARAM_DEFINE_INT32(COM_ARM_WO_GPS, 1);
+
+/**
+ * Arm switch is only a button
+ *
+ * The default uses the arm switch as real switch.
+ * If parameter set button gets handled like stick arming.
+ *
+ * @group Commander
+ * @min 0
+ * @max 1
+ * @value 0 Arm switch is a switch that stays on when armed
+ * @value 1 Arm switch is a button that only triggers arming and disarming
+ */
+PARAM_DEFINE_INT32(COM_ARM_SWISBTN, 0);
 
 /**
  * Battery failsafe mode
@@ -282,8 +300,9 @@ PARAM_DEFINE_INT32(COM_ARM_WO_GPS, 1);
  *
  * @group Commander
  * @value 0 Warning
- * @value 1 Return to Land
+ * @value 1 Return to land
  * @value 2 Land at current position
+ * @value 3 Return to land at critically low level, land at current position if reaching dangerously low levels
  * @decimal 0
  * @increment 1
  */
@@ -326,7 +345,7 @@ PARAM_DEFINE_INT32(COM_OBL_ACT, 0);
  * @value 2 Manual
  * @value 3 Return to Land
  * @value 4 Land at current position
- *
+ * @value 5 Loiter
  * @group Mission
  */
 PARAM_DEFINE_INT32(COM_OBL_RC_ACT, 0);
@@ -468,3 +487,130 @@ PARAM_DEFINE_INT32(COM_FLTMODE5, -1);
  * @value 12 Follow Me
  */
 PARAM_DEFINE_INT32(COM_FLTMODE6, -1);
+
+/**
+ * Maximum EKF position innovation test ratio that will allow arming
+ *
+ * @group Commander
+ * @unit m
+ * @min 0.1
+ * @max 1.0
+ * @decimal 2
+ * @increment 0.05
+ */
+PARAM_DEFINE_FLOAT(COM_ARM_EKF_POS, 0.5f);
+
+/**
+ * Maximum EKF velocity innovation test ratio that will allow arming
+ *
+ * @group Commander
+ * @unit m/s
+ * @min 0.1
+ * @max 1.0
+ * @decimal 2
+ * @increment 0.05
+ */
+PARAM_DEFINE_FLOAT(COM_ARM_EKF_VEL, 0.5f);
+
+/**
+ * Maximum EKF height innovation test ratio that will allow arming
+ *
+ * @group Commander
+ * @unit m
+ * @min 0.1
+ * @max 1.0
+ * @decimal 2
+ * @increment 0.05
+ */
+PARAM_DEFINE_FLOAT(COM_ARM_EKF_HGT, 1.0f);
+
+/**
+ * Maximum EKF yaw innovation test ratio that will allow arming
+ *
+ * @group Commander
+ * @unit rad
+ * @min 0.1
+ * @max 1.0
+ * @decimal 2
+ * @increment 0.05
+ */
+PARAM_DEFINE_FLOAT(COM_ARM_EKF_YAW, 0.5f);
+
+/**
+ * Maximum value of EKF accelerometer delta velocity bias estimate that will allow arming
+ *
+ * @group Commander
+ * @unit m/s
+ * @min 0.001
+ * @max 0.01
+ * @decimal 4
+ * @increment 0.0005
+ */
+PARAM_DEFINE_FLOAT(COM_ARM_EKF_AB, 5.0e-3f);
+
+/**
+ * Maximum value of EKF gyro delta angle bias estimate that will allow arming
+ *
+ * @group Commander
+ * @unit rad
+ * @min 0.0001
+ * @max 0.0017
+ * @decimal 5
+ * @increment 0.0001
+ */
+PARAM_DEFINE_FLOAT(COM_ARM_EKF_GB, 8.7e-4f);
+
+/**
+ * Maximum accelerometer inconsistency between IMU units that will allow arming
+ *
+ * @group Commander
+ * @unit m/s/s
+ * @min 0.1
+ * @max 1.0
+ * @decimal 2
+ * @increment 0.05
+ */
+PARAM_DEFINE_FLOAT(COM_ARM_IMU_ACC, 0.7f);
+
+/**
+ * Maximum rate gyro inconsistency between IMU units that will allow arming
+ *
+ * @group Commander
+ * @unit rad/s
+ * @min 0.02
+ * @max 0.3
+ * @decimal 3
+ * @increment 0.01
+ */
+PARAM_DEFINE_FLOAT(COM_ARM_IMU_GYR, 0.2f);
+
+/**
+ * Enable RC stick override of auto modes
+ *
+ * @boolean
+ * @group Commander
+ */
+PARAM_DEFINE_INT32(COM_RC_OVERRIDE, 0);
+
+/**
+ * Require valid mission to arm
+ *
+ * The default allows to arm the vehicle without a valid mission.
+ *
+ * @group Commander
+ * @boolean
+ */
+PARAM_DEFINE_INT32(COM_ARM_MIS_REQ, 0);
+
+/**
+ * Position control navigation loss response.
+ *
+ * This sets the flight mode that will be used if navigation accuracy is no longer adequte for position control.
+ * Navigation accuracy checks can be disabled using the CBRK_VELPOSERR parameter, but doing so will remove protection for all flight modes.
+ *
+ * @value 0 Assume use of remote control after fallback. Switch to ALTCTL if a height estimate is available, else switch to MANUAL.
+ * @value 1 Assume no use of remote control after fallback. Switch to DESCEND if a height estimate is available, else switch to TERMINATION.
+ *
+ * @group Mission
+ */
+PARAM_DEFINE_INT32(COM_POSCTL_NAVL, 0);

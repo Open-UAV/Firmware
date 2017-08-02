@@ -37,6 +37,7 @@
  */
 
 #include <sys/types.h>
+#include <px4_defines.h>
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdbool.h>
@@ -51,9 +52,9 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <px4_config.h>
+#include <px4_tasks.h>
 #include <drivers/drv_hrt.h>
 #include <drivers/device/device.h>
-#include <systemlib/systemlib.h>
 #include <drivers/drv_gps.h>
 #include <uORB/uORB.h>
 #include <uORB/topics/vehicle_gps_position.h>
@@ -70,13 +71,8 @@ using namespace DriverFramework;
 #define GPSSIM_DEVICE_PATH "/dev/gpssim"
 
 #define TIMEOUT_5HZ 500
+#define TIMEOUT_10MS 10
 #define RATE_MEASUREMENT_PERIOD 5000000
-
-/* oddly, ERROR is not defined for c++ */
-#ifdef ERROR
-# undef ERROR
-#endif
-static const int ERROR = -1;
 
 /* class for dynamic allocation of satellite info data */
 class GPS_Sat_Info
@@ -138,7 +134,7 @@ private:
 	/**
 	 * Worker task: main GPS thread that configures the GPS and parses incoming data, always running
 	 */
-	void				task_main(void);
+	void				task_main();
 
 	/**
 	 * Set the baudrate of the UART to the GPS
@@ -192,7 +188,7 @@ GPSSIM::GPSSIM(const char *uart_path, bool fake_gps, bool enable_sat_info) :
 
 	/* create satellite info data object if requested */
 	if (enable_sat_info) {
-		_Sat_Info = new(GPS_Sat_Info);
+		_Sat_Info = new (GPS_Sat_Info);
 		_p_report_sat_info = &_Sat_Info->_data;
 		memset(_p_report_sat_info, 0, sizeof(*_p_report_sat_info));
 	}
@@ -200,6 +196,8 @@ GPSSIM::GPSSIM(const char *uart_path, bool fake_gps, bool enable_sat_info) :
 
 GPSSIM::~GPSSIM()
 {
+	delete _Sat_Info;
+
 	/* tell the task we want it to go away */
 	_task_should_exit = true;
 
@@ -220,7 +218,7 @@ GPSSIM::~GPSSIM()
 int
 GPSSIM::init()
 {
-	int ret = ERROR;
+	int ret = PX4_ERROR;
 
 	/* do regular cdev init */
 	if (VirtDevObj::init() != OK) {
@@ -277,22 +275,32 @@ GPSSIM::receive(int timeout)
 	simulator::RawGPSData gps;
 	sim->getGPSSample((uint8_t *)&gps, sizeof(gps));
 
-	_report_gps_pos.timestamp = hrt_absolute_time();
-	_report_gps_pos.lat = gps.lat;
-	_report_gps_pos.lon = gps.lon;
-	_report_gps_pos.alt = gps.alt;
-	_report_gps_pos.eph = (float)gps.eph * 1e-2f;
-	_report_gps_pos.epv = (float)gps.epv * 1e-2f;
-	_report_gps_pos.vel_m_s = (float)(gps.vel) / 100.0f;
-	_report_gps_pos.vel_n_m_s = (float)(gps.vn) / 100.0f;
-	_report_gps_pos.vel_e_m_s = (float)(gps.ve) / 100.0f;
-	_report_gps_pos.vel_d_m_s = (float)(gps.vd) / 100.0f;
-	_report_gps_pos.cog_rad = (float)(gps.cog) * 3.1415f / (100.0f * 180.0f);
-	_report_gps_pos.fix_type = gps.fix_type;
-	_report_gps_pos.satellites_used = gps.satellites_visible;
+	static uint64_t timestamp_last = 0;
 
-	usleep(200000);
-	return 1;
+	if (gps.timestamp != timestamp_last) {
+		_report_gps_pos.timestamp = hrt_absolute_time();
+		_report_gps_pos.lat = gps.lat;
+		_report_gps_pos.lon = gps.lon;
+		_report_gps_pos.alt = gps.alt;
+		_report_gps_pos.eph = (float)gps.eph * 1e-2f;
+		_report_gps_pos.epv = (float)gps.epv * 1e-2f;
+		_report_gps_pos.vel_m_s = (float)(gps.vel) / 100.0f;
+		_report_gps_pos.vel_n_m_s = (float)(gps.vn) / 100.0f;
+		_report_gps_pos.vel_e_m_s = (float)(gps.ve) / 100.0f;
+		_report_gps_pos.vel_d_m_s = (float)(gps.vd) / 100.0f;
+		_report_gps_pos.cog_rad = (float)(gps.cog) * 3.1415f / (100.0f * 180.0f);
+		_report_gps_pos.fix_type = gps.fix_type;
+		_report_gps_pos.satellites_used = gps.satellites_visible;
+
+		timestamp_last = gps.timestamp;
+
+		return 1;
+
+	} else {
+
+		usleep(timeout);
+		return 0;
+	}
 }
 
 void
@@ -352,10 +360,12 @@ GPSSIM::task_main()
 			// GPS is obviously detected successfully, reset statistics
 			//_Helper->reset_update_rates();
 
-			while ((receive(TIMEOUT_5HZ)) > 0 && !_task_should_exit) {
+			int recv_ret = 0;
+
+			while ((recv_ret = receive(TIMEOUT_10MS)) >= 0 && !_task_should_exit) {
 				/* opportunistic publishing - else invalid data would end up on the bus */
 
-				if (!(m_pub_blocked)) {
+				if (recv_ret && !(m_pub_blocked)) {
 					orb_publish(ORB_ID(vehicle_gps_position), _report_gps_pos_pub, &_report_gps_pos);
 
 					if (_p_report_sat_info) {
@@ -378,7 +388,6 @@ GPSSIM::task_main()
 
 	/* tell the dtor that we are exiting */
 	_task = -1;
-	return;
 }
 
 

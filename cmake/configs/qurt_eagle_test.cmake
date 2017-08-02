@@ -6,10 +6,19 @@ else()
 	set(HEXAGON_SDK_ROOT $ENV{HEXAGON_SDK_ROOT})
 endif()
 
-set(CMAKE_TOOLCHAIN_FILE ${PX4_SOURCE_DIR}/cmake/cmake_hexagon/toolchain/Toolchain-qurt.cmake)
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${PX4_SOURCE_DIR}/cmake/cmake_hexagon")
+set(DISABLE_PARAMS_MODULE_SCOPING TRUE)
 
-set(config_generate_parameters_scope ALL)
+# Get $QC_SOC_TARGET from environment if existing.
+if (DEFINED ENV{QC_SOC_TARGET})
+	set(QC_SOC_TARGET $ENV{QC_SOC_TARGET})
+else()
+	set(QC_SOC_TARGET "APQ8074")
+endif()
+
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${PX4_SOURCE_DIR}/cmake/cmake_hexagon")
+include(toolchain/Toolchain-qurt)
+include(qurt_flags)
+include_directories(${HEXAGON_SDK_INCLUDES})
 
 set(config_module_list
 	drivers/device
@@ -22,7 +31,7 @@ set(config_module_list
 	#
 	# Library modules
 	#
-	modules/param
+	modules/systemlib/param
 	modules/systemlib
 	modules/systemlib/mixer
 	modules/uORB
@@ -34,6 +43,7 @@ set(config_module_list
 	lib/mathlib/math/filter
 	lib/conversion
 	lib/DriverFramework/framework
+	lib/micro-CDR
 
 	#
 	# QuRT port

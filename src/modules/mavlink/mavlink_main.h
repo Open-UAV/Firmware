@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (c) 2012-2016 PX4 Development Team. All rights reserved.
+ *   Copyright (c) 2012-2017 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -33,13 +33,16 @@
 
 /**
  * @file mavlink_main.h
- * MAVLink 1.0 protocol interface definition.
  *
- * @author Lorenz Meier <lm@inf.ethz.ch>
+ * MAVLink 2.0 protocol interface definition.
+ *
+ * @author Lorenz Meier <lorenz@px4.io>
  * @author Anton Babushkin <anton.babushkin@me.com>
  */
 
 #pragma once
+
+#include <px4_posix.h>
 
 #include <stdbool.h>
 #ifdef __PX4_NUTTX
@@ -65,11 +68,8 @@
 #include "mavlink_orb_subscription.h"
 #include "mavlink_stream.h"
 #include "mavlink_messages.h"
-#include "mavlink_mission.h"
-#include "mavlink_parameters.h"
-#include "mavlink_ftp.h"
-#include "mavlink_log_handler.h"
 #include "mavlink_shell.h"
+#include "mavlink_ulog.h"
 
 enum Protocol {
 	SERIAL = 0,
@@ -162,7 +162,8 @@ public:
 		MAVLINK_MODE_ONBOARD,
 		MAVLINK_MODE_OSD,
 		MAVLINK_MODE_MAGIC,
-		MAVLINK_MODE_CONFIG
+		MAVLINK_MODE_CONFIG,
+		MAVLINK_MODE_IRIDIUM
 	};
 
 	enum BROADCAST_MODE {
@@ -191,6 +192,9 @@ public:
 		case MAVLINK_MODE_CONFIG:
 			return "Config";
 
+		case MAVLINK_MODE_IRIDIUM:
+			return "Iridium";
+
 		default:
 			return "Unknown";
 		}
@@ -213,6 +217,8 @@ public:
 
 	void			set_config_link_on(bool on) { _config_link_on = on; }
 
+	bool			is_connected() { return ((_rstatus.heartbeat_time > 0) && (hrt_absolute_time() - _rstatus.heartbeat_time < 3000000)); }
+
 	bool			broadcast_enabled() { return _broadcast_mode > BROADCAST_MODE_OFF; }
 
 	/**
@@ -231,14 +237,6 @@ public:
 	unsigned		get_free_tx_buf();
 
 	static int		start_helper(int argc, char *argv[]);
-
-	/**
-	 * Handle parameter related messages.
-	 */
-	void			mavlink_pm_message_handler(const mavlink_channel_t chan, const mavlink_message_t *msg);
-
-	void			get_mavlink_mode_and_state(struct vehicle_status_s *status, struct position_setpoint_triplet_s *pos_sp_triplet,
-			uint8_t *mavlink_state, uint8_t *mavlink_base_mode, uint32_t *mavlink_custom_mode);
 
 	/**
 	 * Enable / disable Hardware in the Loop simulation mode.
@@ -272,6 +270,12 @@ public:
 	 */
 	bool			get_manual_input_mode_generation() { return _generate_rc; }
 
+
+	/**
+	 * This is the beginning of a MAVLINK_START_UART_SEND/MAVLINK_END_UART_SEND transaction
+	 */
+	void 			begin_send();
+
 	/**
 	 * Send bytes out on the link.
 	 *
@@ -284,7 +288,7 @@ public:
 	 *
 	 * @return the number of bytes sent or -1 in case of error
 	 */
-	int			send_packet();
+	int             send_packet();
 
 	/**
 	 * Resend message as is, don't change sequence number and CRC.
@@ -308,7 +312,7 @@ public:
 
 	mavlink_channel_t	get_channel();
 
-	void			configure_stream_threadsafe(const char *stream_name, float rate);
+	void			configure_stream_threadsafe(const char *stream_name, float rate = -1.0f);
 
 	bool			_task_should_exit;	/**< if true, mavlink task should exit */
 
@@ -345,7 +349,16 @@ public:
 	 * @param severity the log level
 	 */
 	void			send_statustext(unsigned char severity, const char *string);
+
+	/**
+	 * Send the capabilities of this autopilot in terms of the MAVLink spec
+	 */
 	void 			send_autopilot_capabilites();
+
+	/**
+	 * Send the protocol version of MAVLink
+	 */
+	void			send_protocol_version();
 
 	MavlinkStream 		*get_streams() const { return _streams; }
 
@@ -419,21 +432,34 @@ public:
 
 	bool			accepting_commands() { return true; /* non-trivial side effects ((!_config_link_on) || (_mode == MAVLINK_MODE_CONFIG));*/ }
 
-	/**
-	 * Whether or not the system should be logging
-	 */
-	bool			get_logging_enabled() { return _logging_enabled; }
+	bool			verbose() { return _verbose; }
 
-	void			set_logging_enabled(bool logging) { _logging_enabled = logging; }
-
-	int			get_data_rate() { return _datarate; }
+	int			get_data_rate()		{ return _datarate; }
 	void			set_data_rate(int rate) { if (rate > 0) { _datarate = rate; } }
+
+	uint64_t		get_main_loop_delay() { return _main_loop_delay; }
 
 	/** get the Mavlink shell. Create a new one if there isn't one. It is *always* created via MavlinkReceiver thread.
 	 *  Returns nullptr if shell cannot be created */
 	MavlinkShell		*get_shell();
 	/** close the Mavlink shell if it is open */
 	void			close_shell();
+
+	/** get ulog streaming if active, nullptr otherwise */
+	MavlinkULog		*get_ulog_streaming() { return _mavlink_ulog; }
+	void			try_start_ulog_streaming(uint8_t target_system, uint8_t target_component)
+	{
+		if (_mavlink_ulog) { return; }
+
+		_mavlink_ulog = MavlinkULog::try_start(_datarate, 0.7f, target_system, target_component);
+	}
+	void			request_stop_ulog_streaming()
+	{
+		if (_mavlink_ulog) { _mavlink_ulog_stop_requested = true; }
+	}
+
+
+	void set_uorb_main_fd(int fd, unsigned int interval);
 
 protected:
 	Mavlink			*next;
@@ -444,7 +470,10 @@ private:
 	orb_advert_t		_mavlink_log_pub;
 	bool			_task_running;
 	static bool		_boot_complete;
-	static const unsigned MAVLINK_MAX_INSTANCES = 4;
+	static constexpr unsigned MAVLINK_MAX_INSTANCES = 4;
+	static constexpr unsigned MAVLINK_MIN_INTERVAL = 1500;
+	static constexpr unsigned MAVLINK_MAX_INTERVAL = 10000;
+	static constexpr float MAVLINK_MIN_MULTIPLIER = 0.0005f;
 	mavlink_message_t _mavlink_buffer;
 	mavlink_status_t _mavlink_status;
 
@@ -462,11 +491,9 @@ private:
 	MavlinkOrbSubscription	*_subscriptions;
 	MavlinkStream		*_streams;
 
-	MavlinkMissionManager		*_mission_manager;
-	MavlinkParametersManager	*_parameters_manager;
-	MavlinkFTP			*_mavlink_ftp;
-	MavlinkLogHandler		*_mavlink_log_handler;
 	MavlinkShell			*_mavlink_shell;
+	MavlinkULog			*_mavlink_ulog;
+	volatile bool			_mavlink_ulog_stop_requested;
 
 	MAVLINK_MODE 		_mode;
 
@@ -549,7 +576,6 @@ private:
 	pthread_mutex_t		_send_mutex;
 
 	bool			_param_initialized;
-	bool			_logging_enabled;
 	uint32_t		_broadcast_mode;
 
 	param_t			_param_system_id;
@@ -573,13 +599,13 @@ private:
 	int			mavlink_open_uart(int baudrate, const char *uart_name);
 #endif
 
-	static unsigned int	interval_from_rate(float rate);
+	static int		interval_from_rate(float rate);
 
 	static constexpr unsigned RADIO_BUFFER_CRITICAL_LOW_PERCENTAGE = 25;
 	static constexpr unsigned RADIO_BUFFER_LOW_PERCENTAGE = 35;
 	static constexpr unsigned RADIO_BUFFER_HALF_PERCENTAGE = 50;
 
-	int configure_stream(const char *stream_name, const float rate);
+	int configure_stream(const char *stream_name, const float rate = -1.0f);
 
 	/**
 	 * Adjust the stream rates based on the current rate
@@ -601,6 +627,14 @@ private:
 	void message_buffer_mark_read(int n);
 
 	void pass_message(const mavlink_message_t *msg);
+
+	/**
+	 * Check the configuration of a connected radio
+	 *
+	 * This convenience function allows to re-configure a connected
+	 * radio without removing it from the main system harness.
+	 */
+	void check_radio_config();
 
 	/**
 	 * Update rate mult so total bitrate will be equal to _datarate.

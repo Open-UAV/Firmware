@@ -41,6 +41,7 @@
 
 #include <px4_config.h>
 #include <px4_posix.h>
+#include <px4_tasks.h>
 
 #include <sys/stat.h>
 #include <dirent.h>
@@ -53,7 +54,7 @@
 
 #include <drivers/drv_hrt.h>
 
-#include "tests.h"
+#include "tests_main.h"
 
 const int fsync_tries = 1;
 const int abort_tries = 10;
@@ -271,6 +272,7 @@ test_mount(int argc, char *argv[])
 			px4_close(fd);
 
 			if (ret) {
+				px4_close(cmd_fd);
 				PX4_ERR("UNLINKING FILE FAILED");
 				return 1;
 			}
@@ -282,7 +284,7 @@ test_mount(int argc, char *argv[])
 	fsync(fileno(stderr));
 	usleep(20000);
 
-
+	px4_close(cmd_fd);
 
 	/* we always reboot for the next test if we get here */
 	PX4_INFO("Iteration done, rebooting..");

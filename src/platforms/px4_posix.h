@@ -40,6 +40,7 @@
 #pragma once
 
 #include <px4_defines.h>
+#include <px4_tasks.h>
 #include <stdint.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -86,6 +87,8 @@ typedef struct pollfd px4_pollfd_struct_t;
 #define  PX4_F_CREAT  O_CREAT
 #define	 PX4_STACK_OVERHEAD	8192
 
+__BEGIN_DECLS
+
 typedef short pollevent_t;
 
 typedef struct {
@@ -99,8 +102,6 @@ typedef struct {
 	void   *priv;     	/* For use by drivers */
 } px4_pollfd_struct_t;
 
-__BEGIN_DECLS
-
 __EXPORT int 		px4_open(const char *path, int flags, ...);
 __EXPORT int 		px4_close(int fd);
 __EXPORT ssize_t	px4_read(int fd, void *buffer, size_t buflen);
@@ -109,7 +110,7 @@ __EXPORT int		px4_ioctl(int fd, int cmd, unsigned long arg);
 __EXPORT int		px4_poll(px4_pollfd_struct_t *fds, nfds_t nfds, int timeout);
 __EXPORT int		px4_fsync(int fd);
 __EXPORT int		px4_access(const char *pathname, int mode);
-__EXPORT unsigned long	px4_getpid(void);
+__EXPORT px4_task_t	px4_getpid(void);
 
 __EXPORT void		px4_enable_sim_lockstep(void);
 __EXPORT void		px4_sim_start_delay(void);
@@ -145,6 +146,8 @@ __EXPORT const char 	*px4_get_topic_names(unsigned int *handle);
 __EXPORT uint64_t	hrt_system_time(void);
 
 __EXPORT bool		px4_exit_requested(void);
+
+
 #endif
 
 __END_DECLS

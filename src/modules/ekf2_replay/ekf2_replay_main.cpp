@@ -70,7 +70,6 @@
 #include <uORB/topics/optical_flow.h>
 #include <uORB/topics/distance_sensor.h>
 #include <uORB/topics/airspeed.h>
-#include <uORB/topics/vision_position_estimate.h>
 
 #include <sdlog2/sdlog2_messages.h>
 
@@ -136,7 +135,8 @@ private:
 	orb_advert_t _flow_pub;
 	orb_advert_t _range_pub;
 	orb_advert_t _airspeed_pub;
-	orb_advert_t _ev_pub;
+	orb_advert_t _vehicle_vision_position_pub;
+	orb_advert_t _vehicle_vision_attitude_pub;
 	orb_advert_t _vehicle_status_pub;
 
 	int _att_sub;
@@ -154,8 +154,16 @@ private:
 	struct optical_flow_s _flow;
 	struct distance_sensor_s _range;
 	struct airspeed_s _airspeed;
-	struct vision_position_estimate_s _ev;
+	struct vehicle_local_position_s _vehicle_vision_position;
+	struct vehicle_attitude_s _vehicle_vision_attitude;
 	struct vehicle_status_s _vehicle_status;
+
+	uint32_t _numInnovSamples;	// number of samples used to calculate the RMS innovation values
+	float _velInnovSumSq;		// GPS velocity innovation sum of squares
+	float _posInnovSumSq;		// GPS position innovation sum of squares
+	float _hgtInnovSumSq;		// Vertical position innovation sum of squares
+	float _magInnovSumSq;		// magnetometer innovation sum of squares
+	float _tasInnovSumSq;		// airspeed innovation sum of squares
 
 	unsigned _message_counter; // counter which will increase with every message read from the log
 	unsigned _part1_counter_ref;		// this is the value of _message_counter when the part1 of the replay message is read (imu data)
@@ -212,7 +220,8 @@ Ekf2Replay::Ekf2Replay(char *logfile) :
 	_flow_pub(nullptr),
 	_range_pub(nullptr),
 	_airspeed_pub(nullptr),
-	_ev_pub(nullptr),
+	_vehicle_vision_position_pub(nullptr),
+	_vehicle_vision_attitude_pub(nullptr),
 	_vehicle_status_pub(nullptr),
 	_att_sub(-1),
 	_estimator_status_sub(-1),
@@ -226,7 +235,15 @@ Ekf2Replay::Ekf2Replay(char *logfile) :
 	_flow{},
 	_range{},
 	_airspeed{},
+	_vehicle_vision_position{},
+	_vehicle_vision_attitude{},
 	_vehicle_status{},
+	_numInnovSamples(0),
+	_velInnovSumSq(0.0f),
+	_posInnovSumSq(0.0f),
+	_hgtInnovSumSq(0.0f),
+	_magInnovSumSq(0.0f),
+	_tasInnovSumSq(0.0f),
 	_message_counter(0),
 	_part1_counter_ref(0),
 	_read_part2(false),
@@ -281,11 +298,18 @@ void Ekf2Replay::publishEstimatorInput()
 
 	_read_part4 = false;
 
-	if (_ev_pub == nullptr && _read_part5) {
-		_ev_pub = orb_advertise(ORB_ID(vision_position_estimate), &_ev);
+	if (_vehicle_vision_attitude_pub == nullptr && _read_part5) {
+		_vehicle_vision_attitude_pub = orb_advertise(ORB_ID(vehicle_vision_attitude), &_vehicle_vision_attitude);
 
-	} else if (_ev_pub != nullptr && _read_part5) {
-		orb_publish(ORB_ID(vision_position_estimate), _ev_pub, &_ev);
+	} else if (_vehicle_vision_attitude_pub != nullptr && _read_part5) {
+		orb_publish(ORB_ID(vehicle_vision_attitude), _vehicle_vision_attitude_pub, &_vehicle_vision_attitude);
+	}
+
+	if (_vehicle_vision_position_pub == nullptr && _read_part5) {
+		_vehicle_vision_position_pub = orb_advertise(ORB_ID(vehicle_vision_position), &_vehicle_vision_position);
+
+	} else if (_vehicle_vision_position_pub != nullptr && _read_part5) {
+		orb_publish(ORB_ID(vehicle_vision_position), _vehicle_vision_position_pub, &_vehicle_vision_position);
 	}
 
 	_read_part5 = false;
@@ -379,8 +403,23 @@ void Ekf2Replay::setEstimatorInput(uint8_t *data, uint8_t type)
 		_sensors.timestamp = replay_part1.time_ref;
 		_sensors.gyro_integral_dt = replay_part1.gyro_integral_dt;
 		_sensors.accelerometer_integral_dt = replay_part1.accelerometer_integral_dt;
-		_sensors.magnetometer_timestamp_relative = (int32_t)(replay_part1.magnetometer_timestamp - _sensors.timestamp);
-		_sensors.baro_timestamp_relative = (int32_t)(replay_part1.baro_timestamp - _sensors.timestamp);
+
+		// If the magnetometer timestamp is zero, then there is no valid data
+		if (replay_part1.magnetometer_timestamp == 0) {
+			_sensors.magnetometer_timestamp_relative = (int32_t)sensor_combined_s::RELATIVE_TIMESTAMP_INVALID;
+
+		} else {
+			_sensors.magnetometer_timestamp_relative = (int32_t)(replay_part1.magnetometer_timestamp - _sensors.timestamp);
+		}
+
+		// If the barometer timestamp is zero then there is no valid data
+		if (replay_part1.baro_timestamp == 0) {
+			_sensors.baro_timestamp_relative = (int32_t)sensor_combined_s::RELATIVE_TIMESTAMP_INVALID;
+
+		} else {
+			_sensors.baro_timestamp_relative = (int32_t)(replay_part1.baro_timestamp - _sensors.timestamp);
+		}
+
 		_sensors.gyro_rad[0] = replay_part1.gyro_x_rad;
 		_sensors.gyro_rad[1] = replay_part1.gyro_y_rad;
 		_sensors.gyro_rad[2] = replay_part1.gyro_z_rad;
@@ -446,17 +485,15 @@ void Ekf2Replay::setEstimatorInput(uint8_t *data, uint8_t type)
 	} else if (type == LOG_RPL5_MSG) {
 		uint8_t *dest_ptr = (uint8_t *)&replay_part5.time_ev_usec;
 		parseMessage(data, dest_ptr, type);
-		_ev.timestamp = replay_part5.time_ev_usec;
-		_ev.timestamp_received = replay_part5.time_ev_usec; // fake this timestamp
-		_ev.x = replay_part5.x;
-		_ev.y = replay_part5.y;
-		_ev.z = replay_part5.z;
-		_ev.q[0] = replay_part5.q0;
-		_ev.q[1] = replay_part5.q1;
-		_ev.q[2] = replay_part5.q2;
-		_ev.q[3] = replay_part5.q3;
-		_ev.pos_err = replay_part5.pos_err;
-		_ev.ang_err = replay_part5.pos_err;
+		_vehicle_vision_attitude.timestamp = replay_part5.time_ev_usec;
+		_vehicle_vision_position.timestamp = replay_part5.time_ev_usec;
+		_vehicle_vision_position.x = replay_part5.x;
+		_vehicle_vision_position.y = replay_part5.y;
+		_vehicle_vision_position.z = replay_part5.z;
+		_vehicle_vision_attitude.q[0] = replay_part5.q0;
+		_vehicle_vision_attitude.q[1] = replay_part5.q1;
+		_vehicle_vision_attitude.q[2] = replay_part5.q2;
+		_vehicle_vision_attitude.q[3] = replay_part5.q3;
 		_read_part5 = true;
 
 	} else if (type == LOG_LAND_MSG) {
@@ -495,20 +532,16 @@ void Ekf2Replay::writeMessage(int &fd, void *data, size_t size)
 
 bool Ekf2Replay::needToSaveMessage(uint8_t type)
 {
-	if (type == LOG_ATT_MSG ||
-	    type == LOG_LPOS_MSG ||
-	    type == LOG_EST0_MSG ||
-	    type == LOG_EST1_MSG ||
-	    type == LOG_EST2_MSG ||
-	    type == LOG_EST3_MSG ||
-	    type == LOG_EST4_MSG ||
-	    type == LOG_EST5_MSG ||
-	    type == LOG_EST6_MSG ||
-	    type == LOG_CTS_MSG) {
-		return false;
-	}
-
-	return true;
+	return !(type == LOG_ATT_MSG ||
+		 type == LOG_LPOS_MSG ||
+		 type == LOG_EST0_MSG ||
+		 type == LOG_EST1_MSG ||
+		 type == LOG_EST2_MSG ||
+		 type == LOG_EST3_MSG ||
+		 type == LOG_EST4_MSG ||
+		 type == LOG_EST5_MSG ||
+		 type == LOG_EST6_MSG ||
+		 type == LOG_CTS_MSG);
 }
 
 // update all estimator topics and write them to log file
@@ -535,15 +568,14 @@ void Ekf2Replay::logIfUpdated()
 	log_message.body.att.q_x = att.q[1];
 	log_message.body.att.q_y = att.q[2];
 	log_message.body.att.q_z = att.q[3];
-	log_message.body.att.roll = att.roll;
-	log_message.body.att.pitch = att.pitch;
-	log_message.body.att.yaw = att.yaw;
+	log_message.body.att.roll = atan2f(2 * (att.q[0] * att.q[1] + att.q[2] * att.q[3]),
+					   1 - 2 * (att.q[1] * att.q[1] + att.q[2] * att.q[2]));
+	log_message.body.att.pitch = asinf(2 * (att.q[0] * att.q[2] - att.q[3] * att.q[1]));
+	log_message.body.att.yaw = atan2f(2 * (att.q[0] * att.q[3] + att.q[1] * att.q[2]),
+					  1 - 2 * (att.q[2] * att.q[2] + att.q[3] * att.q[3]));
 	log_message.body.att.roll_rate = att.rollspeed;
 	log_message.body.att.pitch_rate = att.pitchspeed;
 	log_message.body.att.yaw_rate = att.yawspeed;
-	log_message.body.att.gx = att.g_comp[0];
-	log_message.body.att.gy = att.g_comp[1];
-	log_message.body.att.gz = att.g_comp[2];
 
 	writeMessage(_write_fd, (void *)&log_message.head1, _formats[LOG_ATT_MSG].length);
 
@@ -616,6 +648,10 @@ void Ekf2Replay::logIfUpdated()
 					    est_status.covariances) : sizeof(log_message.body.est2.cov);
 		memset(&(log_message.body.est2.cov), 0, sizeof(log_message.body.est2.cov));
 		memcpy(&(log_message.body.est2.cov), est_status.covariances, maxcopy2);
+		log_message.body.est2.gps_check_fail_flags = est_status.gps_check_fail_flags;
+		log_message.body.est2.control_mode_flags = est_status.control_mode_flags;
+		log_message.body.est2.health_flags = est_status.health_flags;
+		log_message.body.est2.innov_test_flags = est_status.innovation_check_flags;
 		writeMessage(_write_fd, (void *)&log_message.head1, _formats[LOG_EST2_MSG].length);
 
 		log_message.type = LOG_EST3_MSG;
@@ -646,6 +682,10 @@ void Ekf2Replay::logIfUpdated()
 			log_message.body.innov.s[i + 6] = innov.vel_pos_innov_var[i];
 		}
 
+		for (unsigned i = 0; i < 3; i++) {
+			log_message.body.innov.s[i + 12] = innov.output_tracking_error[i];
+		}
+
 		writeMessage(_write_fd, (void *)&log_message.head1, _formats[LOG_EST4_MSG].length);
 
 		log_message.type = LOG_EST5_MSG;
@@ -662,6 +702,8 @@ void Ekf2Replay::logIfUpdated()
 		log_message.body.innov2.s[7] = innov.heading_innov_var;
 		log_message.body.innov2.s[8] = innov.airspeed_innov;
 		log_message.body.innov2.s[9] = innov.airspeed_innov_var;
+		log_message.body.innov2.s[10] = innov.beta_innov;
+		log_message.body.innov2.s[11] = innov.beta_innov_var;
 
 		writeMessage(_write_fd, (void *)&log_message.head1, _formats[LOG_EST5_MSG].length);
 
@@ -679,6 +721,16 @@ void Ekf2Replay::logIfUpdated()
 		log_message.body.innov3.s[4] = innov.hagl_innov;
 		log_message.body.innov3.s[5] = innov.hagl_innov_var;
 		writeMessage(_write_fd, (void *)&log_message.head1, _formats[LOG_EST6_MSG].length);
+
+		// Update tuning metrics
+		_numInnovSamples++;
+		_velInnovSumSq += innov.vel_pos_innov[0] * innov.vel_pos_innov[0] + innov.vel_pos_innov[1] * innov.vel_pos_innov[1];
+		_posInnovSumSq += innov.vel_pos_innov[3] * innov.vel_pos_innov[3] + innov.vel_pos_innov[4] * innov.vel_pos_innov[4];
+		_hgtInnovSumSq += innov.vel_pos_innov[5] * innov.vel_pos_innov[5];
+		_magInnovSumSq += innov.mag_innov[0] * innov.mag_innov[0] + innov.mag_innov[1] * innov.mag_innov[1] + innov.mag_innov[2]
+				  * innov.mag_innov[2];
+		_tasInnovSumSq += innov.airspeed_innov * innov.airspeed_innov;
+
 	}
 
 	// update control state
@@ -987,6 +1039,16 @@ void Ekf2Replay::task_main()
 	::close(fd);
 	delete ekf2_replay::instance;
 	ekf2_replay::instance = nullptr;
+
+	// Report sensor innovation RMS values to assist with time delay tuning
+	if (_numInnovSamples > 0) {
+		PX4_INFO("GPS vel innov RMS = %6.3f", (double)sqrtf(_velInnovSumSq / _numInnovSamples));
+		PX4_INFO("GPS pos innov RMS = %6.3f", (double)sqrtf(_posInnovSumSq / _numInnovSamples));
+		PX4_INFO("Hgt innov RMS = %6.3f", (double)sqrtf(_hgtInnovSumSq / _numInnovSamples));
+		PX4_INFO("Mag innov RMS = %6.4f", (double)sqrtf(_magInnovSumSq / _numInnovSamples));
+		PX4_INFO("TAS innov RMS = %6.3f", (double)sqrtf(_tasInnovSumSq / _numInnovSamples));
+	}
+
 }
 
 void Ekf2Replay::task_main_trampoline(int argc, char *argv[])

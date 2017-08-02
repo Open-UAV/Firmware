@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (c) 2014 PX4 Development Team. All rights reserved.
+ *   Copyright (c) 2014-2017 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -37,15 +37,14 @@
 #include <cstring>
 #include <fcntl.h>
 #include <dirent.h>
-#include <memory>
 #include <pthread.h>
+#include <mathlib/mathlib.h>
 #include <systemlib/err.h>
 #include <systemlib/systemlib.h>
 #include <systemlib/param/param.h>
 #include <systemlib/mixer/mixer.h>
 #include <systemlib/board_serial.h>
 #include <systemlib/scheduling_priorities.h>
-#include <systemlib/git_version.h>
 #include <version/version.h>
 #include <arch/board/board.h>
 #include <arch/chip/chip.h>
@@ -59,15 +58,11 @@
 #include <uavcan_posix/firmware_version_checker.hpp>
 
 #include <uORB/topics/vehicle_command.h>
+#include <uORB/topics/vehicle_command_ack.h>
 #include <uORB/topics/uavcan_parameter_request.h>
 #include <uORB/topics/uavcan_parameter_value.h>
 
-#include <v1.0/common/mavlink.h>
-
-//todo:The Inclusion of file_server_backend is killing
-// #include <sys/types.h> and leaving OK undefined
-# define OK 0
-
+#include <v2.0/common/mavlink.h>
 
 
 /**
@@ -283,7 +278,7 @@ int UavcanServers::init()
 
 	/*  Start the Node   */
 
-	return OK;
+	return 0;
 }
 
 pthread_addr_t UavcanServers::run(pthread_addr_t)
@@ -403,7 +398,7 @@ pthread_addr_t UavcanServers::run(pthread_addr_t)
 					 */
 					_param_index = 0;
 					_param_list_in_progress = true;
-					_param_list_node_id = get_next_active_node_id(1);
+					_param_list_node_id = get_next_active_node_id(0);
 					_param_list_all_nodes = true;
 
 					warnx("UAVCAN command bridge: starting global param list with node %hhu", _param_list_node_id);
@@ -473,6 +468,8 @@ pthread_addr_t UavcanServers::run(pthread_addr_t)
 			struct vehicle_command_s cmd;
 			orb_copy(ORB_ID(vehicle_command), cmd_sub, &cmd);
 
+			uint8_t cmd_ack_result = vehicle_command_ack_s::VEHICLE_RESULT_ACCEPTED;
+
 			if (cmd.command == vehicle_command_s::VEHICLE_CMD_PREFLIGHT_UAVCAN) {
 				int command_id = static_cast<int>(cmd.param1 + 0.5f);
 				int node_id = static_cast<int>(cmd.param2 + 0.5f);
@@ -491,10 +488,11 @@ pthread_addr_t UavcanServers::run(pthread_addr_t)
 						//       Leaving it as-is to avoid breaking compatibility with non-compliant nodes.
 						req.parameter_name = "esc_index";
 						req.timeout_sec = _esc_enumeration_active ? 65535 : 0;
-						call_res = _enumeration_client.call(get_next_active_node_id(1), req);
+						call_res = _enumeration_client.call(get_next_active_node_id(0), req);
 						if (call_res < 0) {
 							warnx("UAVCAN ESC enumeration: couldn't send initial Begin request: %d", call_res);
 							beep(BeepFrequencyError);
+							cmd_ack_result = vehicle_command_ack_s::VEHICLE_RESULT_FAILED;
 						} else {
 							beep(BeepFrequencyGenericIndication);
 						}
@@ -502,6 +500,7 @@ pthread_addr_t UavcanServers::run(pthread_addr_t)
 					}
 				default: {
 						warnx("UAVCAN command bridge: unknown command ID %d", command_id);
+						cmd_ack_result = vehicle_command_ack_s::VEHICLE_RESULT_UNSUPPORTED;
 						break;
 					}
 				}
@@ -532,6 +531,18 @@ pthread_addr_t UavcanServers::run(pthread_addr_t)
 					}
 				}
 			}
+
+			// Acknowledge the received command
+			struct vehicle_command_ack_s ack = {};
+			ack.command = cmd.command;
+			ack.result = cmd_ack_result;
+
+			if (_command_ack_pub == nullptr) {
+				_command_ack_pub = orb_advertise_queue(ORB_ID(vehicle_command_ack), &ack, vehicle_command_ack_s::ORB_QUEUE_LENGTH);
+			} else {
+				orb_publish(ORB_ID(vehicle_command_ack), _command_ack_pub, &ack);
+			}
+
 		}
 
 		// Shut down once armed
@@ -542,7 +553,7 @@ pthread_addr_t UavcanServers::run(pthread_addr_t)
 			struct actuator_armed_s armed;
 			orb_copy(ORB_ID(actuator_armed), armed_sub, &armed);
 
-			if (armed.armed && !armed.lockdown) {
+			if (armed.armed && !(armed.lockdown || armed.manual_lockdown)) {
 				warnx("UAVCAN command bridge: system armed, exiting now.");
 				break;
 			}
@@ -820,8 +831,8 @@ void UavcanServers::cb_enumeration_getset(const uavcan::ServiceCallResult<uavcan
 
 		uavcan::protocol::param::GetSet::Response resp = result.getResponse();
 		uint8_t esc_index = (uint8_t)resp.value.to<uavcan::protocol::param::Value::Tag::integer_value>();
-		esc_index = std::min((uint8_t)(uavcan::equipment::esc::RawCommand::FieldTypes::cmd::MaxSize - 1), esc_index);
-		_esc_enumeration_index = std::max(_esc_enumeration_index, (uint8_t)(esc_index + 1));
+		esc_index = math::min((uint8_t)(uavcan::equipment::esc::RawCommand::FieldTypes::cmd::MaxSize - 1), esc_index);
+		_esc_enumeration_index = math::max(_esc_enumeration_index, (uint8_t)(esc_index + 1));
 
 		_esc_enumeration_ids[esc_index] = result.getCallID().server_node_id.get();
 
@@ -864,7 +875,7 @@ void UavcanServers::cb_enumeration_save(const uavcan::ServiceCallResult<uavcan::
 		//       Leaving it as-is to avoid breaking compatibility with non-compliant nodes.
 		req.parameter_name = "esc_index";
 		req.timeout_sec = 0;
-		int call_res = _enumeration_client.call(get_next_active_node_id(1), req);
+		int call_res = _enumeration_client.call(get_next_active_node_id(0), req);
 		if (call_res < 0) {
 			warnx("UAVCAN ESC enumeration: couldn't send Begin request to stop enumeration: %d", call_res);
 		} else {

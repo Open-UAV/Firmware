@@ -80,8 +80,6 @@
 Airspeed::Airspeed(int bus, int address, unsigned conversion_interval, const char *path) :
 	I2C("Airspeed", path, bus, address, 100000),
 	_reports(nullptr),
-	_buffer_overflows(perf_alloc(PC_COUNT, "aspd_buf_of")),
-	_max_differential_pressure_pa(0),
 	_sensor_ok(false),
 	_last_published_sensor_ok(true), /* initialize differently to force publication */
 	_measure_ticks(0),
@@ -118,13 +116,12 @@ Airspeed::~Airspeed()
 	// free perf counters
 	perf_free(_sample_perf);
 	perf_free(_comms_errors);
-	perf_free(_buffer_overflows);
 }
 
 int
 Airspeed::init()
 {
-	int ret = ERROR;
+	int ret = PX4_ERROR;
 
 	/* do I2C init (and probe) first */
 	if (I2C::init() != OK) {
@@ -153,7 +150,7 @@ Airspeed::init()
 		_airspeed_pub = orb_advertise(ORB_ID(differential_pressure), &arp);
 
 		if (_airspeed_pub == nullptr) {
-			warnx("uORB started?");
+			PX4_WARN("uORB started?");
 		}
 	}
 
@@ -192,7 +189,7 @@ Airspeed::ioctl(struct file *filp, int cmd, unsigned long arg)
 				_measure_ticks = 0;
 				return OK;
 
-			/* external signalling (DRDY) not supported */
+			/* external signaling (DRDY) not supported */
 			case SENSOR_POLLRATE_EXTERNAL:
 
 			/* zero would be bad */
@@ -409,7 +406,6 @@ Airspeed::print_info()
 {
 	perf_print_counter(_sample_perf);
 	perf_print_counter(_comms_errors);
-	perf_print_counter(_buffer_overflows);
 	warnx("poll interval:  %u ticks", _measure_ticks);
 	_reports->print_info("report queue");
 }
@@ -417,7 +413,5 @@ Airspeed::print_info()
 void
 Airspeed::new_report(const differential_pressure_s &report)
 {
-	if (!_reports->force(&report)) {
-		perf_count(_buffer_overflows);
-	}
+	_reports->force(&report);
 }

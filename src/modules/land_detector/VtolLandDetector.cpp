@@ -46,7 +46,7 @@
 namespace land_detector
 {
 
-VtolLandDetector::VtolLandDetector() : MulticopterLandDetector(),
+VtolLandDetector::VtolLandDetector() :
 	_paramHandle(),
 	_params(),
 	_airspeedSub(-1),
@@ -69,6 +69,18 @@ void VtolLandDetector::_update_topics()
 	MulticopterLandDetector::_update_topics();
 
 	_orb_update(ORB_ID(airspeed), _airspeedSub, &_airspeed);
+}
+
+bool VtolLandDetector::_get_ground_contact_state()
+{
+	return MulticopterLandDetector::_get_ground_contact_state();
+}
+
+bool VtolLandDetector::_get_maybe_landed_state()
+{
+
+	// TODO
+	return false;
 }
 
 bool VtolLandDetector::_get_landed_state()

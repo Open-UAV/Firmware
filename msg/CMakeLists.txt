@@ -41,6 +41,8 @@ set(msg_file_names
 	att_pos_mocap.msg
 	battery_status.msg
 	camera_trigger.msg
+	camera_capture.msg
+	collision_report.msg
 	commander_state.msg
 	control_state.msg
 	cpuload.msg
@@ -49,6 +51,7 @@ set(msg_file_names
 	distance_sensor.msg
 	ekf2_innovations.msg
 	ekf2_replay.msg
+	ekf2_timestamps.msg
 	esc_report.msg
 	esc_status.msg
 	estimator_status.msg
@@ -57,22 +60,20 @@ set(msg_file_names
 	filtered_bottom_flow.msg
 	follow_target.msg
 	fw_pos_ctrl_status.msg
-	fw_virtual_attitude_setpoint.msg
-	fw_virtual_rates_setpoint.msg
 	geofence_result.msg
 	gps_dump.msg
 	gps_inject_data.msg
 	hil_sensor.msg
 	home_position.msg
 	input_rc.msg
+	led_control.msg
 	log_message.msg
 	manual_control_setpoint.msg
 	mavlink_log.msg
 	mc_att_ctrl_status.msg
-	mc_virtual_attitude_setpoint.msg
-	mc_virtual_rates_setpoint.msg
 	mission.msg
 	mission_result.msg
+	mount_orientation.msg
 	multirotor_motor_limits.msg
 	offboard_control_mode.msg
 	optical_flow.msg
@@ -80,6 +81,7 @@ set(msg_file_names
 	parameter_update.msg
 	position_setpoint.msg
 	position_setpoint_triplet.msg
+	power_button_state.msg
 	pwm_input.msg
 	qshell_req.msg
 	rc_channels.msg
@@ -89,11 +91,15 @@ set(msg_file_names
 	sensor_accel.msg
 	sensor_baro.msg
 	sensor_combined.msg
+	sensor_correction.msg
+	sensor_selection.msg
 	sensor_gyro.msg
 	sensor_mag.msg
+	sensor_preflight.msg
 	servorail_status.msg
 	subsystem_info.msg
 	system_power.msg
+	task_stack_info.msg
 	tecs_status.msg
 	telemetry_status.msg
 	test_motor.msg
@@ -101,31 +107,37 @@ set(msg_file_names
 	transponder_report.msg
 	uavcan_parameter_request.msg
 	uavcan_parameter_value.msg
+	ulog_stream.msg
+	ulog_stream_ack.msg
 	vehicle_attitude.msg
 	vehicle_attitude_setpoint.msg
-	vehicle_command_ack.msg
 	vehicle_command.msg
+	vehicle_command_ack.msg
 	vehicle_control_mode.msg
 	vehicle_force_setpoint.msg
 	vehicle_global_position.msg
-	vehicle_global_velocity_setpoint.msg
 	vehicle_gps_position.msg
 	vehicle_land_detected.msg
 	vehicle_local_position.msg
 	vehicle_local_position_setpoint.msg
 	vehicle_rates_setpoint.msg
+	vehicle_roi.msg
 	vehicle_status.msg
-	vision_position_estimate.msg
+	vehicle_status_flags.msg
 	vtol_vehicle_status.msg
 	wind_estimate.msg
-	vehicle_roi.msg
 	)
 
 # Get absolute paths
 set(msg_files)
+set(msg_include_paths)
+
 foreach(msg_file ${msg_file_names})
 	list(APPEND msg_files ${CMAKE_CURRENT_SOURCE_DIR}/${msg_file})
 endforeach()
+
+list(APPEND msg_include_paths ${CMAKE_CURRENT_SOURCE_DIR})
+set(msg_include_paths ${msg_include_paths} PARENT_SCOPE)
 
 set(msg_files ${msg_files} PARENT_SCOPE)
 

@@ -35,16 +35,17 @@
 #
 #	Defined functions in this file
 #
-# 	OS Specific Functions
+#	OS Specific Functions
 #
 #		* px4_nuttx_add_firmware
+#		* px4_nuttx_make_uavcan_bootloadable
 #		* px4_nuttx_generate_builtin_commands
 #		* px4_nuttx_add_export
 #		* px4_nuttx_add_romfs
 #
-# 	Required OS Inteface Functions
+#	Required OS Inteface Functions
 #
-# 		* px4_os_add_flags
+#		* px4_os_add_flags
 #		* px4_os_prebuild_targets
 #
 
@@ -80,29 +81,95 @@ function(px4_nuttx_add_firmware)
 		ARGN ${ARGN})
 
 	set(extra_args)
-
+	set(dependencies)
 	if (PARAM_XML)
 		list(APPEND extra_args
 			--parameter_xml ${PARAM_XML}
 			)
+		list(APPEND dependencies parameters_xml)
 	endif()
 
 	if (AIRFRAMES_XML)
 		list(APPEND extra_args
 			--airframe_xml ${AIRFRAMES_XML}
 			)
+		list(APPEND dependencies airframes_xml)
 	endif()
 
-	add_custom_command(OUTPUT ${OUT}
+	add_custom_command(OUTPUT ${OUT} ${EXE}.bin
 		COMMAND ${OBJCOPY} -O binary ${EXE} ${EXE}.bin
 		COMMAND ${PYTHON_EXECUTABLE} ${PX4_SOURCE_DIR}/Tools/px_mkfw.py
 			--prototype ${PX4_SOURCE_DIR}/Images/${BOARD}.prototype
 			--git_identity ${PX4_SOURCE_DIR}
 			${extra_args}
 			--image ${EXE}.bin > ${OUT}
-		DEPENDS ${EXE}
+		DEPENDS ${EXE} ${dependencies}
 		)
 	add_custom_target(build_firmware_${BOARD} ALL DEPENDS ${OUT})
+endfunction()
+
+#=============================================================================
+#
+#	px4_nuttx_make_uavcan_bootloadable
+#
+#	This function adds a uavcan boot loadable target.
+#
+#	Usage:
+#	  px4_nuttx_make_uavcan_bootloadable(
+#	   BOARD	<board>
+#	   BIN <input bin file>)
+#	   HWNAME <uavcan name>
+#	   HW_MAJOR <number>
+#	   HW_MINOR <number>
+#	   SW_MAJOR <number>
+#	   SW_MINOR <number>)
+#
+#	Input:
+#	  BOARD	     : the board
+#	  BIN	     : the bin file to generate the bootloadable image from
+#	  HWNAME     : the uavcan name
+#	  HW_MAJOR   : the major hardware revision
+#	  HW_MINOR   : the minor hardware revision
+#	  SW_MAJOR   : the major software revision
+#	  SW_MINOR   : the minor software revision
+#
+#	Output:
+#		OUT			: None
+#
+#	Example:
+#	px4_nuttx_make_uavcan_bootloadable(
+#	  BOARD ${BOARD}
+#		BIN ${CMAKE_CURRENT_BINARY_DIR}/firmware_nuttx
+#		HWNAME ${uavcanblid_name}
+#		HW_MAJOR ${uavcanblid_hw_version_major}
+#		HW_MINOR ${uavcanblid_hw_version_minor}
+#		SW_MAJOR ${uavcanblid_sw_version_major}
+#		SW_MINOR ${uavcanblid_sw_version_minor}
+#	 )
+#
+function(px4_nuttx_make_uavcan_bootloadable)
+	px4_parse_function_args(
+		NAME px4_nuttx_make_uavcan_bootloadable
+		ONE_VALUE BOARD BIN HWNAME HW_MAJOR HW_MINOR SW_MAJOR SW_MINOR
+		REQUIRED BOARD BIN HWNAME HW_MAJOR HW_MINOR SW_MAJOR SW_MINOR
+		ARGN ${ARGN})
+	string(REPLACE "\"" "" HWNAME ${HWNAME})
+	execute_process(
+		COMMAND git rev-list HEAD --max-count=1 --abbrev=8 --abbrev-commit
+		OUTPUT_VARIABLE uavcanbl_git_desc
+		OUTPUT_STRIP_TRAILING_WHITESPACE
+		WORKING_DIRECTORY ${PX4_SOURCE_DIR}
+	)
+  if ("${uavcanbl_git_desc}" STREQUAL "")
+		set(uavcanbl_git_desc ffffffff)
+  endif()
+	set(uavcan_bl_imange_name ${HWNAME}-${HW_MAJOR}.${HW_MINOR}-${SW_MAJOR}.${SW_MINOR}.${uavcanbl_git_desc}.uavcan.bin)
+	message(STATUS "Generating UAVCAN Bootable as ${uavcan_bl_imange_name}")
+	add_custom_command(OUTPUT ${uavcan_bl_imange_name}
+		COMMAND ${PYTHON_EXECUTABLE} ${PX4_SOURCE_DIR}/Tools/make_can_boot_descriptor.py
+			-v --use-git-hash ${BIN} ${uavcan_bl_imange_name}
+		DEPENDS ${BIN})
+	add_custom_target(build_uavcan_bl_${BOARD} ALL DEPENDS ${uavcan_bl_imange_name})
 endfunction()
 
 #=============================================================================
@@ -183,62 +250,120 @@ function(px4_nuttx_add_export)
 		REQUIRED OUT CONFIG THREADS
 		ARGN ${ARGN})
 
-	set(nuttx_src ${PX4_BINARY_DIR}/${CONFIG}/NuttX)
+	set(nuttx_build_options "--quiet")
+	set(nuttx_build_output ">nuttx_build.log")
+	if ($ENV{PX4_NUTTX_BUILD_VERBOSE} MATCHES "1")
+		set(nuttx_build_options)
+		set(nuttx_build_output)
+		set(nuttx_build_uses_terminal "USES_TERMINAL")
+	endif()
 
-	# patch
-	add_custom_target(__nuttx_patch_${CONFIG})
-	file(GLOB nuttx_patches RELATIVE ${PX4_SOURCE_DIR}
-	    ${PX4_SOURCE_DIR}/nuttx-patches/*.patch)
-	foreach(patch ${nuttx_patches})
-		string(REPLACE "/" "_" patch_name "${patch}-${CONFIG}")
-	    message(STATUS "nuttx-patch: ${patch}")
-		add_custom_command(OUTPUT nuttx_patch_${patch_name}.stamp
-			COMMAND ${PATCH} -p0 -N  < ${PX4_SOURCE_DIR}/${patch}
-			COMMAND ${TOUCH} nuttx_patch_${patch_name}.stamp
-			DEPENDS ${DEPENDS}
-			)
-	    add_custom_target(nuttx_patch_${patch_name}
-			DEPENDS nuttx_patch_${patch_name}.stamp)
-	    add_dependencies(nuttx_patch nuttx_patch_${patch_name})
+	if ($ENV{PX4_NUTTX_PATCHES_VERBOSE} MATCHES "1")
+		set(nuttx_patches_uses_terminal "USES_TERMINAL")
+	endif()
+
+	# nuttx-patches
+	add_subdirectory(${PX4_SOURCE_DIR}/nuttx-patches ${PX4_BINARY_DIR}/${CONFIG})
+
+	set(nuttx_build_src ${PX4_BINARY_DIR}/${CONFIG}/NuttX)
+	set(nuttx_export_dir ${nuttx_build_src}/nuttx/nuttx-export)
+
+	# nuttx cmake dependency files
+	set(nuttx_copy_stamp ${PX4_BINARY_DIR}/${CONFIG}/nuttx_copy.stamp)
+	set(nuttx_configure_stamp ${PX4_BINARY_DIR}/${CONFIG}/nuttx_configure.stamp)
+	set(nuttx_export_stamp ${PX4_BINARY_DIR}/${CONFIG}/nuttx_export.stamp)
+
+	# copy
+	file(GLOB_RECURSE nuttx_all_files ${PX4_SOURCE_DIR}/NuttX/*)
+	file(RELATIVE_PATH nuttx_cp_src ${PX4_BINARY_DIR} ${PX4_SOURCE_DIR}/NuttX)
+	add_custom_command(OUTPUT ${nuttx_copy_stamp}
+		COMMAND ${MKDIR} -p ${nuttx_build_src}
+		COMMAND rsync -rp --inplace --delete --exclude=.git --exclude=nuttx-export ${nuttx_cp_src}/ ${CONFIG}/NuttX/
+		COMMAND cmake -E touch ${nuttx_copy_stamp}
+		DEPENDS ${px4_nuttx_patches} ${nuttx_all_files}
+		COMMENT "Copying NuttX for ${CONFIG} with ${config_nuttx_config}"
+		WORKING_DIRECTORY ${PX4_BINARY_DIR})
+	add_custom_target(nuttx_copy_${CONFIG} DEPENDS ${DEPENDS} ${nuttx_copy_stamp})
+
+	unset(last_patch)
+	add_custom_target(nuttx_patch_${CONFIG})
+	foreach(patch ${px4_nuttx_patches})
+		get_filename_component(patch_file_name ${patch} NAME)
+		string(REPLACE "/" "_" patch_name "${CONFIG}-nuttx_patch_${patch_file_name}")
+		set(patch_stamp ${nuttx_build_src}/${patch_name}.stamp)
+
+		add_custom_command(OUTPUT ${patch_stamp}
+			COMMAND ${PATCH} --verbose -d ${nuttx_build_src} -s -p1 -N < ${patch}
+			COMMAND cmake -E touch ${patch_stamp}
+			DEPENDS nuttx_copy_${CONFIG} ${patch} ${last_patch}
+			COMMENT "${CONFIG}: nuttx-patches/${patch_file_name} applied"
+			${nuttx_patches_uses_terminal})
+
+		add_custom_target(${patch_name} DEPENDS ${patch_stamp})
+		add_dependencies(nuttx_patch_${CONFIG} ${patch_name} nuttx_copy_${CONFIG})
+		set(last_patch ${patch_name})
 	endforeach()
 
-	# Read defconfig to see if CONFIG_ARMV7M_STACKCHECK is yes 
+	# Read defconfig to see if CONFIG_ARMV7M_STACKCHECK is yes
 	# note: CONFIG will be BOARD in the future evaluation of ${hw_stack_check_${CONFIG}
-	file(STRINGS "${PX4_SOURCE_DIR}/nuttx-configs/${CONFIG}/nsh/defconfig"
+	file(STRINGS "${PX4_SOURCE_DIR}/nuttx-configs/${CONFIG}/${config_nuttx_config}/defconfig"
 		hw_stack_check_${CONFIG}
 		REGEX "CONFIG_ARMV7M_STACKCHECK=y"
 		)
 	if ("${hw_stack_check_${CONFIG}}" STREQUAL "CONFIG_ARMV7M_STACKCHECK=y")
-		set(config_nuttx_hw_stack_check_${CONFIG} y CACHE INTERNAL "")
+		set(config_nuttx_hw_stack_check_${CONFIG} y CACHE INTERNAL "" FORCE)
 	endif()
 
-	# copy and export
-	file(RELATIVE_PATH nuttx_cp_src ${PX4_BINARY_DIR} ${PX4_SOURCE_DIR}/NuttX)
-	file(GLOB_RECURSE config_files ${PX4_SOURCE_DIR}/nuttx-configs/${CONFIG}/*)
-	add_custom_command(OUTPUT ${PX4_BINARY_DIR}/${CONFIG}.export
-		COMMAND ${MKDIR} -p ${nuttx_src}
-		COMMAND rsync -a --delete --exclude=.git ${nuttx_cp_src}/ ${CONFIG}/NuttX/
-		#COMMAND ${ECHO} Configuring NuttX for ${CONFIG}
-		COMMAND ${MAKE} --no-print-directory -C${nuttx_src}/nuttx -r --quiet distclean
-		COMMAND ${CP} -r ${PX4_SOURCE_DIR}/nuttx-configs/PX4_Warnings.mk ${nuttx_src}/nuttx/
-		COMMAND ${CP} -r ${PX4_SOURCE_DIR}/nuttx-configs/${CONFIG} ${nuttx_src}/nuttx/configs
-		COMMAND cd ${nuttx_src}/nuttx/tools && ./configure.sh ${CONFIG}/nsh && cd ..
-		#COMMAND ${ECHO} Exporting NuttX for ${CONFIG}
-		COMMAND ${MAKE} --no-print-directory --quiet -C ${nuttx_src}/nuttx -j${THREADS} -r CONFIG_ARCH_BOARD=${CONFIG} export > nuttx_build.log
-		COMMAND ${CP} -r ${nuttx_src}/nuttx/nuttx-export.zip ${PX4_BINARY_DIR}/${CONFIG}.export
-		DEPENDS ${config_files} "${PX4_SOURCE_DIR}/nuttx-configs/${CONFIG}/nsh/defconfig" ${DEPENDS}
+	# nuttx configure
+	file(GLOB_RECURSE nuttx-configs ${PX4_SOURCE_DIR}/nuttx-configs/${CONFIG}/*)
+	add_custom_command(OUTPUT ${nuttx_configure_stamp} ${nuttx_build_src}/nuttx/.config
+		COMMAND ${CP} -rp ${PX4_SOURCE_DIR}/nuttx-configs/*.mk ${nuttx_build_src}/nuttx/
+		COMMAND ${CP} -rp ${PX4_SOURCE_DIR}/nuttx-configs/${CONFIG} ${nuttx_build_src}/nuttx/configs
+		COMMAND cd ${nuttx_build_src}/nuttx/tools && sh configure.sh ${CONFIG}/${config_nuttx_config}
+		COMMAND cmake -E touch ${nuttx_configure_stamp}
+		DEPENDS nuttx_patch_${CONFIG} ${nuttx-configs}
 		WORKING_DIRECTORY ${PX4_BINARY_DIR}
-		COMMENT "Building NuttX for ${CONFIG}")
+		COMMENT "Configuring NuttX for ${CONFIG} with ${config_nuttx_config}")
+	add_custom_target(nuttx_configure_${CONFIG} DEPENDS ${nuttx_configure_stamp} nuttx_patch_${CONFIG})
 
-	# extract
-	add_custom_command(OUTPUT nuttx_export_${CONFIG}.stamp
-		COMMAND ${RM} -rf ${nuttx_src}/nuttx-export
-		COMMAND ${UNZIP} -q ${PX4_BINARY_DIR}/${CONFIG}.export -d ${nuttx_src}
-		COMMAND ${TOUCH} nuttx_export_${CONFIG}.stamp
-		DEPENDS ${DEPENDS} ${PX4_BINARY_DIR}/${CONFIG}.export)
+	# manual nuttx oldconfig helper
+	add_custom_target(oldconfig_${CONFIG}
+		COMMAND ${MAKE} --no-print-directory -C ${nuttx_build_src}/nuttx CONFIG_ARCH_BOARD=${CONFIG} oldconfig
+		COMMAND ${CP} ${nuttx_build_src}/nuttx/.config ${PX4_SOURCE_DIR}/nuttx-configs/${CONFIG}/${config_nuttx_config}/defconfig
+		COMMAND ${PX4_SOURCE_DIR}/Tools/nuttx_defconf_tool.sh ${PX4_SOURCE_DIR}/nuttx-configs/${CONFIG}/${config_nuttx_config}/defconfig
+		DEPENDS nuttx_configure_${CONFIG}
+		WORKING_DIRECTORY ${nuttx_build_src}/nuttx
+		COMMENT "Running NuttX make oldconfig for ${CONFIG} with ${config_nuttx_config}"
+		USES_TERMINAL)
 
-	add_custom_target(${OUT}
-		DEPENDS nuttx_export_${CONFIG}.stamp)
+	# manual nuttx menuconfig helper
+	add_custom_target(menuconfig_${CONFIG}
+		COMMAND ${MAKE} --no-print-directory -C ${nuttx_build_src}/nuttx CONFIG_ARCH_BOARD=${CONFIG} menuconfig
+		COMMAND ${CP} ${nuttx_build_src}/nuttx/.config ${PX4_SOURCE_DIR}/nuttx-configs/${CONFIG}/${config_nuttx_config}/defconfig
+		COMMAND ${PX4_SOURCE_DIR}/Tools/nuttx_defconf_tool.sh ${PX4_SOURCE_DIR}/nuttx-configs/${CONFIG}/${config_nuttx_config}/defconfig
+		DEPENDS nuttx_configure_${CONFIG}
+		WORKING_DIRECTORY ${nuttx_build_src}/nuttx
+		COMMENT "Running NuttX make menuconfig for ${CONFIG} with ${config_nuttx_config}"
+		USES_TERMINAL)
+
+	# nuttx build and export
+	add_custom_command(
+		OUTPUT ${nuttx_export_stamp}
+			${nuttx_export_dir}/include/nuttx/config.h
+		COMMAND ${RM} -rf ${nuttx_export_dir}
+		COMMAND ${MAKE} ${nuttx_build_options} --no-print-directory -C ${nuttx_build_src}/nuttx -r CONFIG_ARCH_BOARD=${CONFIG} export ${nuttx_build_output}
+		COMMAND cmake -E touch ${nuttx_export_stamp}
+		DEPENDS nuttx_configure_${CONFIG}
+		WORKING_DIRECTORY ${PX4_BINARY_DIR}/${CONFIG}
+		COMMENT "Building NuttX for ${CONFIG} with ${config_nuttx_config}"
+		${nuttx_build_uses_terminal})
+
+	file(GLOB_RECURSE nuttx_export_src ${nuttx_export_dir})
+	foreach(nuttx_export_file ${nuttx_export_dir})
+		set_source_files_properties(${nuttx_export_src} PROPERTIES GENERATED TRUE)
+	endforeach()
+
+	add_custom_target(${OUT} DEPENDS nuttx_copy_${CONFIG} nuttx_patch_${CONFIG} nuttx_configure_${CONFIG} ${nuttx_export_stamp})
 
 endfunction()
 
@@ -281,7 +406,7 @@ endfunction()
 #
 #	px4_nuttx_add_romfs
 #
-#	The functions creates a  ROMFS filesystem for nuttx.
+#	The functions creates a ROMFS filesystem for nuttx.
 #
 #	Usage:
 #		px4_nuttx_add_romfs(
@@ -291,7 +416,7 @@ endfunction()
 #
 #	Input:
 #		ROOT	: the root of the ROMFS
-#		EXTRAS 	: list of extra files
+#		EXTRAS	: list of extra files
 #
 #	Output:
 #		OUT		: the ROMFS library target
@@ -308,6 +433,7 @@ function(px4_nuttx_add_romfs)
 		REQUIRED OUT ROOT
 		ARGN ${ARGN})
 
+	set(romfs_used y PARENT_SCOPE)
 	set(romfs_temp_dir ${PX4_BINARY_DIR}/tmp/${ROOT})
 	set(romfs_src_dir ${PX4_SOURCE_DIR}/${ROOT})
 	set(romfs_autostart ${PX4_SOURCE_DIR}/Tools/px_process_airframes.py)
@@ -319,7 +445,6 @@ function(px4_nuttx_add_romfs)
 
 	set(cmake_test ${PX4_SOURCE_DIR}/cmake/test/cmake_tester.py)
 
-	
 	set(extras)
 	foreach(extra ${EXTRAS})
 		get_filename_component(file_name ${extra} NAME)
@@ -339,8 +464,10 @@ function(px4_nuttx_add_romfs)
 		COMMAND ${PYTHON_EXECUTABLE} ${romfs_autostart}
 			-a ${romfs_temp_dir}/init.d
 			-s ${romfs_temp_dir}/init.d/rc.autostart
+			--board ${BOARD}
 		COMMAND ${PYTHON_EXECUTABLE} ${romfs_pruner}
 			--folder ${romfs_temp_dir}
+			--board ${BOARD}
 		COMMAND ${GENROMFS} -f ${CMAKE_CURRENT_BINARY_DIR}/romfs.bin
 			-d ${romfs_temp_dir} -V "NSHInitVol"
 		#COMMAND cmake -E remove_directory ${romfs_temp_dir}
@@ -389,6 +516,10 @@ endfunction()
 #		LINK_DIRS				: link directories
 #		DEFINITIONS				: definitions
 #
+#	Note that EXE_LINKER_FLAGS is not suitable for adding libraries because
+#	these flags are added before any of the object files and static libraries.
+#	Add libraries in src/firmware/nuttx/CMakeLists.txt.
+#
 #	Example:
 #		px4_os_add_flags(
 #			C_FLAGS CMAKE_C_FLAGS
@@ -418,20 +549,27 @@ function(px4_os_add_flags)
 		LINK_DIRS ${LINK_DIRS}
 		DEFINITIONS ${DEFINITIONS})
 
-	set(nuttx_export_dir ${PX4_BINARY_DIR}/${BOARD}/NuttX/nuttx-export)
+	set(nuttx_export_root ${PX4_BINARY_DIR}/${BOARD}/NuttX)
+	set(nuttx_export_dir ${nuttx_export_root}/nuttx/nuttx-export)
 	set(added_include_dirs
 		${nuttx_export_dir}/include
 		${nuttx_export_dir}/include/cxx
 		${nuttx_export_dir}/arch/chip
 		${nuttx_export_dir}/arch/common
+		${nuttx_export_dir}/arch/armv7-m
+		${nuttx_export_root}/apps/include
 		)
 	set(added_link_dirs
 		${nuttx_export_dir}/libs
 		)
 	set(added_definitions
 		-D__PX4_NUTTX
-		-D__DF_NUTTX
 		)
+
+	if(NOT "${config_nuttx_config}" STREQUAL "bootloader")
+		list(APPEND added_definitions -D__DF_NUTTX)
+	endif()
+
 	set(added_c_flags
 		-nodefaultlibs
 		-nostdlib
@@ -440,6 +578,8 @@ function(px4_os_add_flags)
 		-nodefaultlibs
 		-nostdlib
 		)
+
+	set(added_optimization_flags)
 
 	set(added_exe_linker_flags) # none currently
 
@@ -454,26 +594,26 @@ function(px4_os_add_flags)
 	endif()
 
 	set(cpu_flags)
-	# Handle non-F4 boards specifically here
-	if (${BOARD} STREQUAL "px4io-v1")
+	if (${config_nuttx_hw} STREQUAL "m7")
 		set(cpu_flags
-			-mcpu=cortex-m3
+			-mcpu=cortex-m7
 			-mthumb
-			-march=armv7-m
+			-mfpu=fpv5-sp-d16
+			-mfloat-abi=hard
 			)
-	elseif (${BOARD} STREQUAL "px4io-v2")
+	elseif (${config_nuttx_hw} STREQUAL "m4")
 		set(cpu_flags
-			-mcpu=cortex-m3
-			-mthumb
-			-march=armv7-m
-			)
-	else ()
-			set(cpu_flags
 			-mcpu=cortex-m4
 			-mthumb
 			-march=armv7e-m
 			-mfpu=fpv4-sp-d16
 			-mfloat-abi=hard
+			)
+	elseif (${config_nuttx_hw} STREQUAL "m3")
+		set(cpu_flags
+			-mcpu=cortex-m3
+			-mthumb
+			-march=armv7-m
 			)
 	endif()
 	list(APPEND c_flags ${cpu_flags})
@@ -501,8 +641,8 @@ endfunction()
 #			)
 #
 #	Input:
-#		BOARD 		: board
-#		THREADS 	: number of threads for building
+#		BOARD		: board
+#		THREADS		: number of threads for building
 #
 #	Output:
 #		OUT	: the target list
@@ -521,6 +661,53 @@ function(px4_os_prebuild_targets)
 		THREADS ${THREADS}
 		DEPENDS git_nuttx)
 	add_custom_target(${OUT} DEPENDS nuttx_export_${BOARD})
+endfunction()
+
+#=============================================================================
+#
+#	px4_nuttx_configure
+#
+#	This function sets the nuttx configuration
+#
+#	Usage:
+#		px4_nuttx_configure(
+#	    HWCLASS <m3|m4>
+#		  CONFIG <nsh|bootloader
+#		  [ROMFS <y|n>
+#		  ROMFSROOT <root>]
+#			)
+#
+#	Input:
+#	  HWCLASS		: the class of hardware
+#	  CONFIG		: the nuttx condufiguration to use
+#	  ROMFS			: whether or not to use incllude theROMFS
+#	  ROMFSROOT		: If ROMFS used set the root the default is px4fmu_common
+#
+#	Output:
+#		OUT	: None
+#
+#	Example:
+#		px4_nuttx_configure(HWCLASS m4 CONFIG nsh ROMFS y)
+#
+function(px4_nuttx_configure)
+	px4_parse_function_args(
+			NAME px4_nuttx_configure
+			ONE_VALUE HWCLASS CONFIG ROMFS ROMFSROOT
+			REQUIRED HWCLASS CONFIG
+			ARGN ${ARGN})
+	set(config_nuttx_config ${CONFIG} PARENT_SCOPE)
+	set(config_nuttx_hw ${HWCLASS} PARENT_SCOPE)
+	if ("${ROMFS}" STREQUAL "y")
+		set(romfs_used ${ROMFS} PARENT_SCOPE)
+		if (NOT DEFINED ROMFSROOT)
+			set(config_romfs_root px4fmu_common)
+		else()
+			set(config_romfs_root ${ROMFSROOT})
+		endif()
+		set(HASROMFS "with ROMFS on ${config_romfs_root}")
+		set(config_romfs_root ${config_romfs_root} PARENT_SCOPE)
+	endif()
+	message(STATUS "Nuttx build for ${BOARD} on ${HWCLASS} hardware, using ${CONFIG} ${HASROMFS}")
 endfunction()
 
 # vim: set noet fenc=utf-8 ff=unix nowrap:

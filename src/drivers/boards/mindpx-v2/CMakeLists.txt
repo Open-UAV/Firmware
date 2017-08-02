@@ -33,10 +33,12 @@
 px4_add_module(
 	MODULE drivers__boards__mindpx-v2
 	COMPILE_FLAGS
-		-Os
 	SRCS
+		../common/board_crashdump.c
 		../common/board_dma_alloc.c
-		../common/board_name.c
+		../common/stm32/board_reset.c
+		../common/stm32/board_identity.c
+		../common/stm32/board_mcu_version.c
 		mindpx_can.c
 		mindpx2_init.c
 		mindpx_timer_config.c
@@ -46,4 +48,4 @@ px4_add_module(
 	DEPENDS
 		platforms__common
 	)
-# vim: set noet ft=cmake fenc=utf-8 ff=unix : 
+# vim: set noet ft=cmake fenc=utf-8 ff=unix :

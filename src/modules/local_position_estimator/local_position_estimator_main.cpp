@@ -44,13 +44,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <systemlib/systemlib.h>
 #include <systemlib/param/param.h>
 #include <systemlib/err.h>
 #include <drivers/drv_hrt.h>
 #include <math.h>
 #include <fcntl.h>
 #include <px4_posix.h>
+#include <px4_tasks.h>
 
 #include "BlockLocalPositionEstimator.hpp"
 
@@ -97,6 +97,7 @@ int local_position_estimator_main(int argc, char *argv[])
 
 	if (argc < 2) {
 		usage("missing command");
+		return 1;
 	}
 
 	if (!strcmp(argv[1], "start")) {
@@ -112,9 +113,9 @@ int local_position_estimator_main(int argc, char *argv[])
 		deamon_task = px4_task_spawn_cmd("lp_estimator",
 						 SCHED_DEFAULT,
 						 SCHED_PRIORITY_MAX - 5,
-						 13000,
+						 13500,
 						 local_position_estimator_thread_main,
-						 (argv && argc > 2) ? (char *const *) &argv[2] : (char *const *) NULL);
+						 (argv && argc > 2) ? (char *const *) &argv[2] : (char *const *) nullptr);
 		return 0;
 	}
 

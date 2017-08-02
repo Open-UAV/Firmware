@@ -44,6 +44,8 @@
 #include "standard.h"
 #include "vtol_att_control_main.h"
 
+#include <float.h>
+
 Standard::Standard(VtolAttitudeControl *attc) :
 	VtolType(attc),
 	_flag_enable_mc_motors(true),
@@ -69,13 +71,14 @@ Standard::Standard(VtolAttitudeControl *attc) :
 	_params_handles_standard.down_pitch_max = param_find("VT_DWN_PITCH_MAX");
 	_params_handles_standard.forward_thrust_scale = param_find("VT_FWD_THRUST_SC");
 	_params_handles_standard.airspeed_mode = param_find("FW_ARSP_MODE");
+	_params_handles_standard.pitch_setpoint_offset = param_find("FW_PSP_OFF");
 }
 
 Standard::~Standard()
 {
 }
 
-int
+void
 Standard::parameters_update()
 {
 	float v;
@@ -83,11 +86,11 @@ Standard::parameters_update()
 
 	/* duration of a forwards transition to fw mode */
 	param_get(_params_handles_standard.front_trans_dur, &v);
-	_params_standard.front_trans_dur = math::constrain(v, 0.0f, 5.0f);
+	_params_standard.front_trans_dur = math::constrain(v, 0.0f, 20.0f);
 
 	/* duration of a back transition to mc mode */
 	param_get(_params_handles_standard.back_trans_dur, &v);
-	_params_standard.back_trans_dur = math::constrain(v, 0.0f, 5.0f);
+	_params_standard.back_trans_dur = math::constrain(v, 0.0f, 20.0f);
 
 	/* target throttle value for pusher motor during the transition to fw mode */
 	param_get(_params_handles_standard.pusher_trans, &v);
@@ -120,15 +123,15 @@ Standard::parameters_update()
 	param_get(_params_handles_standard.airspeed_mode, &i);
 	_params_standard.airspeed_mode = math::constrain(i, 0, 2);
 
+	/* pitch setpoint offset */
+	param_get(_params_handles_standard.pitch_setpoint_offset, &v);
+	_params_standard.pitch_setpoint_offset = math::radians(v);
 
 
-	return OK;
 }
 
 void Standard::update_vtol_state()
 {
-	parameters_update();
-
 	/* After flipping the switch the vehicle will start the pusher (or tractor) motor, picking up
 	 * forward speed. After the vehicle has picked up enough speed the rotors shutdown.
 	 * For the back transition the pusher motor is immediately stopped and rotors reactivated.
@@ -202,6 +205,7 @@ void Standard::update_vtol_state()
 			     (float)hrt_elapsed_time(&_vtol_schedule.transition_start)
 			     > (_params_standard.front_trans_time_min * 1000000.0f)) ||
 			    can_transition_on_ground()) {
+
 				_vtol_schedule.flight_mode = FW_MODE;
 				// we can turn off the multirotor motors now
 				_flag_enable_mc_motors = false;
@@ -215,19 +219,19 @@ void Standard::update_vtol_state()
 	// map specific control phases to simple control modes
 	switch (_vtol_schedule.flight_mode) {
 	case MC_MODE:
-		_vtol_mode = ROTARY_WING;
+		_vtol_mode = mode::ROTARY_WING;
 		break;
 
 	case FW_MODE:
-		_vtol_mode = FIXED_WING;
+		_vtol_mode = mode::FIXED_WING;
 		break;
 
 	case TRANSITION_TO_FW:
-		_vtol_mode = mode::TRANSITION_TO_MC;
+		_vtol_mode = mode::TRANSITION_TO_FW;
 		break;
 
 	case TRANSITION_TO_MC:
-		_vtol_mode = mode::TRANSITION_TO_FW;
+		_vtol_mode = mode::TRANSITION_TO_MC;
 		break;
 	}
 }
@@ -280,7 +284,6 @@ void Standard::update_transition_state()
 			_mc_yaw_weight = weight;
 			_mc_throttle_weight = weight;
 
-
 		} else {
 			// at low speeds give full weight to mc
 			_mc_roll_weight = 1.0f;
@@ -288,6 +291,12 @@ void Standard::update_transition_state()
 			_mc_yaw_weight = 1.0f;
 			_mc_throttle_weight = 1.0f;
 		}
+
+		// ramp up FW_PSP_OFF
+		_v_att_sp->pitch_body = _params_standard.pitch_setpoint_offset * (1.0f - _mc_pitch_weight);
+		matrix::Quatf q_sp(matrix::Eulerf(_v_att_sp->roll_body, _v_att_sp->pitch_body, _v_att_sp->yaw_body));
+		q_sp.copyTo(_v_att_sp->q_d);
+		_v_att_sp->q_d_valid = true;
 
 		// check front transition timeout
 		if (_params_standard.front_trans_timeout > FLT_EPSILON) {
@@ -298,10 +307,18 @@ void Standard::update_transition_state()
 		}
 
 	} else if (_vtol_schedule.flight_mode == TRANSITION_TO_MC) {
+
+		// maintain FW_PSP_OFF
+		_v_att_sp->pitch_body = _params_standard.pitch_setpoint_offset;
+		matrix::Quatf q_sp(matrix::Eulerf(_v_att_sp->roll_body, _v_att_sp->pitch_body, _v_att_sp->yaw_body));
+		q_sp.copyTo(_v_att_sp->q_d);
+		_v_att_sp->q_d_valid = true;
+
 		// continually increase mc attitude control as we transition back to mc mode
-		if (_params_standard.back_trans_dur > 0.0f) {
-			float weight = (float)hrt_elapsed_time(&_vtol_schedule.transition_start) / (_params_standard.back_trans_dur *
-					1000000.0f);
+		if (_params_standard.back_trans_dur > FLT_EPSILON) {
+			float weight = (float)hrt_elapsed_time(&_vtol_schedule.transition_start) /
+				       ((_params_standard.back_trans_dur / 2) * 1000000.0f);
+			weight = math::constrain(weight, 0.0f, 1.0f);
 			_mc_roll_weight = weight;
 			_mc_pitch_weight = weight;
 			_mc_yaw_weight = weight;
@@ -339,13 +356,15 @@ void Standard::update_mc_state()
 		_flag_enable_mc_motors = false;
 	}
 
-	// if the thrust scale param is zero then the pusher-for-pitch strategy is disabled and we can return
-	if (_params_standard.forward_thrust_scale < FLT_EPSILON) {
+	// if the thrust scale param is zero or the drone is on manual mode,
+	// then the pusher-for-pitch strategy is disabled and we can return
+	if (_params_standard.forward_thrust_scale < FLT_EPSILON ||
+	    !_v_control_mode->flag_control_position_enabled) {
 		return;
 	}
 
 	matrix::Dcmf R(matrix::Quatf(_v_att->q));
-	matrix::Dcmf R_sp(&_v_att_sp->R_body[0]);
+	matrix::Dcmf R_sp(matrix::Quatf(_v_att_sp->q_d));
 	matrix::Eulerf euler(R);
 	matrix::Eulerf euler_sp(R_sp);
 	_pusher_throttle = 0.0f;
@@ -361,19 +380,19 @@ void Standard::update_mc_state()
 
 	// calculate the desired pitch seen in the heading frame
 	// this value corresponds to the amount the vehicle would try to pitch forward
-	float pitch_forward = asinf(body_z_sp(0));
+	float pitch_forward = atan2f(body_z_sp(0), body_z_sp(2));
 
 	// only allow pitching forward up to threshold, the rest of the desired
 	// forward acceleration will be compensated by the pusher
 	if (pitch_forward < -_params_standard.down_pitch_max) {
 		// desired roll angle in heading frame stays the same
-		float roll_new = -atan2f(body_z_sp(1), body_z_sp(2));
+		float roll_new = -asinf(body_z_sp(1));
 
 		_pusher_throttle = (sinf(-pitch_forward) - sinf(_params_standard.down_pitch_max))
 				   * _v_att_sp->thrust * _params_standard.forward_thrust_scale;
 
-		// limit desired pitch
-		float pitch_new = -_params_standard.down_pitch_max;
+		// return the vehicle to level position
+		float pitch_new = 0.0f;
 
 		// create corrected desired body z axis in heading frame
 		matrix::Dcmf R_tmp = matrix::Eulerf(roll_new, pitch_new, 0.0f);
@@ -386,11 +405,10 @@ void Standard::update_mc_state()
 		tilt_new = R_yaw_correction * tilt_new;
 
 		// now extract roll and pitch setpoints
-		float pitch = asinf(tilt_new(0));
-		float roll = -atan2f(tilt_new(1), tilt_new(2));
-		R_sp = matrix::Eulerf(roll, pitch, euler_sp(2));
+		_v_att_sp->pitch_body = atan2f(tilt_new(0), tilt_new(2));
+		_v_att_sp->roll_body = -asinf(tilt_new(1));
+		R_sp = matrix::Eulerf(_v_att_sp->roll_body, _v_att_sp->pitch_body, euler_sp(2));
 		matrix::Quatf q_sp(R_sp);
-		memcpy(&_v_att_sp->R_body[0], &R_sp._data[0], sizeof(_v_att_sp->R_body));
 		memcpy(&_v_att_sp->q_d[0], &q_sp._data[0], sizeof(_v_att_sp->q_d));
 	}
 
@@ -416,33 +434,50 @@ void Standard::update_fw_state()
  */
 void Standard::fill_actuator_outputs()
 {
-	/* multirotor controls */
+	// multirotor controls
 	_actuators_out_0->timestamp = _actuators_mc_in->timestamp;
-	_actuators_out_0->control[actuator_controls_s::INDEX_ROLL] = _actuators_mc_in->control[actuator_controls_s::INDEX_ROLL]
-			* _mc_roll_weight;	// roll
 
+	// roll
+	_actuators_out_0->control[actuator_controls_s::INDEX_ROLL] =
+		_actuators_mc_in->control[actuator_controls_s::INDEX_ROLL] * _mc_roll_weight;
+	// pitch
 	_actuators_out_0->control[actuator_controls_s::INDEX_PITCH] =
-		_actuators_mc_in->control[actuator_controls_s::INDEX_PITCH] * _mc_pitch_weight;	// pitch
-
-
-	_actuators_out_0->control[actuator_controls_s::INDEX_YAW] = _actuators_mc_in->control[actuator_controls_s::INDEX_YAW] *
-			_mc_yaw_weight;	// yaw
+		_actuators_mc_in->control[actuator_controls_s::INDEX_PITCH] * _mc_pitch_weight;
+	// yaw
+	_actuators_out_0->control[actuator_controls_s::INDEX_YAW] =
+		_actuators_mc_in->control[actuator_controls_s::INDEX_YAW] * _mc_yaw_weight;
+	// throttle
 	_actuators_out_0->control[actuator_controls_s::INDEX_THROTTLE] =
-		_actuators_mc_in->control[actuator_controls_s::INDEX_THROTTLE] * _mc_throttle_weight;	// throttle
+		_actuators_mc_in->control[actuator_controls_s::INDEX_THROTTLE] * _mc_throttle_weight;
 
-	/* fixed wing controls */
+
+	// fixed wing controls
 	_actuators_out_1->timestamp = _actuators_fw_in->timestamp;
-	_actuators_out_1->control[actuator_controls_s::INDEX_ROLL] = -_actuators_fw_in->control[actuator_controls_s::INDEX_ROLL]
-			* (1 - _mc_roll_weight);	//roll
-	_actuators_out_1->control[actuator_controls_s::INDEX_PITCH] =
-		(_actuators_fw_in->control[actuator_controls_s::INDEX_PITCH] + _params->fw_pitch_trim) * (1 - _mc_pitch_weight);	//pitch
-	_actuators_out_1->control[actuator_controls_s::INDEX_YAW] = _actuators_fw_in->control[actuator_controls_s::INDEX_YAW]
-			* (1 - _mc_yaw_weight);	// yaw
 
-	_actuators_out_1->control[actuator_controls_s::INDEX_THROTTLE] = _pusher_throttle;
+
+	if (_vtol_schedule.flight_mode != MC_MODE) {
+
+		//roll
+		_actuators_out_1->control[actuator_controls_s::INDEX_ROLL] =
+			-_actuators_fw_in->control[actuator_controls_s::INDEX_ROLL];
+		//pitch
+		_actuators_out_1->control[actuator_controls_s::INDEX_PITCH] =
+			_actuators_fw_in->control[actuator_controls_s::INDEX_PITCH] + _params->fw_pitch_trim;
+		// yaw
+		_actuators_out_1->control[actuator_controls_s::INDEX_YAW] =
+			_actuators_fw_in->control[actuator_controls_s::INDEX_YAW];
+
+	} else {
+
+		// zero outputs when inactive
+		_actuators_out_1->control[actuator_controls_s::INDEX_ROLL] = 0.0f;
+		_actuators_out_1->control[actuator_controls_s::INDEX_PITCH] = _params->fw_pitch_trim;
+		_actuators_out_1->control[actuator_controls_s::INDEX_YAW] = 0.0f;
+	}
 
 	// set the fixed wing throttle control
 	if (_vtol_schedule.flight_mode == FW_MODE && _armed->armed) {
+
 		// take the throttle value commanded by the fw controller
 		_actuators_out_1->control[actuator_controls_s::INDEX_THROTTLE] =
 			_actuators_fw_in->control[actuator_controls_s::INDEX_THROTTLE];

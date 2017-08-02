@@ -57,7 +57,8 @@
 /*
  * Constants and limits.
  */
-#define PX4IO_SERVO_COUNT		8
+#define PX4IO_BL_VERSION			3
+#define PX4IO_SERVO_COUNT			8
 #define PX4IO_CONTROL_CHANNELS		8
 #define PX4IO_CONTROL_GROUPS		4
 #define PX4IO_RC_INPUT_CHANNELS		18
@@ -69,7 +70,7 @@
 
 #ifdef DEBUG
 # include <debug.h>
-# define debug(fmt, args...)	lowsyslog(fmt "\n", ##args)
+# define debug(fmt, args...)	syslog(LOG_DEBUG,fmt "\n", ##args)
 #else
 # define debug(fmt, args...)	do {} while(0)
 #endif
@@ -77,19 +78,21 @@
 /*
  * Registers.
  */
-extern uint16_t			r_page_status[];	/* PX4IO_PAGE_STATUS */
+extern volatile uint16_t	r_page_status[];	/* PX4IO_PAGE_STATUS */
 extern uint16_t			r_page_actuators[];	/* PX4IO_PAGE_ACTUATORS */
 extern uint16_t			r_page_servos[];	/* PX4IO_PAGE_SERVOS */
+extern uint16_t			r_page_direct_pwm[];	/* PX4IO_PAGE_DIRECT_PWM */
 extern uint16_t			r_page_raw_rc_input[];	/* PX4IO_PAGE_RAW_RC_INPUT */
 extern uint16_t			r_page_rc_input[];	/* PX4IO_PAGE_RC_INPUT */
 extern uint16_t			r_page_adc[];		/* PX4IO_PAGE_RAW_ADC_INPUT */
 
 extern volatile uint16_t	r_page_setup[];		/* PX4IO_PAGE_SETUP */
-extern volatile uint16_t	r_page_controls[];	/* PX4IO_PAGE_CONTROLS */
+extern uint16_t			r_page_controls[];	/* PX4IO_PAGE_CONTROLS */
 extern uint16_t			r_page_rc_input_config[]; /* PX4IO_PAGE_RC_INPUT_CONFIG */
 extern uint16_t			r_page_servo_failsafe[]; /* PX4IO_PAGE_FAILSAFE_PWM */
 extern uint16_t			r_page_servo_control_min[]; /* PX4IO_PAGE_CONTROL_MIN_PWM */
 extern uint16_t			r_page_servo_control_max[]; /* PX4IO_PAGE_CONTROL_MAX_PWM */
+extern int16_t			r_page_servo_control_trim[]; /* PX4IO_PAGE_CONTROL_TRIM_PWM */
 extern uint16_t			r_page_servo_disarmed[];	/* PX4IO_PAGE_DISARMED_PWM */
 
 /*
@@ -126,6 +129,8 @@ extern uint16_t			r_page_servo_disarmed[];	/* PX4IO_PAGE_DISARMED_PWM */
 #define r_setup_scale_pitch	r_page_setup[PX4IO_P_SETUP_SCALE_PITCH]
 #define r_setup_scale_yaw	r_page_setup[PX4IO_P_SETUP_SCALE_YAW]
 #define r_setup_sbus_rate	r_page_setup[PX4IO_P_SETUP_SBUS_RATE]
+#define r_setup_thr_fac		r_page_setup[PX4IO_P_SETUP_THR_MDL_FAC]
+#define r_setup_slew_max	r_page_setup[PX4IO_P_SETUP_MOTOR_SLEW_MAX]
 
 #define r_control_values	(&r_page_controls[0])
 
@@ -145,6 +150,8 @@ struct sys_state_s {
 };
 
 extern struct sys_state_s system_state;
+extern float dt;
+extern bool update_mc_thrust_param;
 
 /*
  * PWM limit structure
@@ -193,6 +200,14 @@ extern pwm_limit_t pwm_limit;
 #define BUTTON_SAFETY		px4_arch_gpioread(GPIO_BTN_SAFETY)
 
 #define CONTROL_PAGE_INDEX(_group, _channel) (_group * PX4IO_CONTROL_CHANNELS + _channel)
+
+#define PX4_CRITICAL_SECTION(cmd)	{ irqstate_t flags = px4_enter_critical_section(); cmd; px4_leave_critical_section(flags); }
+
+#define PX4_ATOMIC_MODIFY_OR(target, modification)	{ if ((target | (modification)) != target) { PX4_CRITICAL_SECTION(target |= (modification)); } }
+
+#define PX4_ATOMIC_MODIFY_CLEAR(target, modification)	{ if ((target & ~(modification)) != target) { PX4_CRITICAL_SECTION(target &= ~(modification)); } }
+
+#define PX4_ATOMIC_MODIFY_AND(target, modification)	{ if ((target & (modification)) != target) { PX4_CRITICAL_SECTION(target &= (modification)); } }
 
 /*
  * Mixer

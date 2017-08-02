@@ -1,5 +1,7 @@
 include(nuttx/px4_impl_nuttx)
 
+px4_nuttx_configure(HWCLASS m4 CONFIG nsh ROMFS y ROMFSROOT px4fmu_common)
+
 set(CMAKE_TOOLCHAIN_FILE ${PX4_SOURCE_DIR}/cmake/toolchains/Toolchain-arm-none-eabi.cmake)
 
 set(config_module_list
@@ -23,17 +25,19 @@ set(config_module_list
 	drivers/ms5611
 	drivers/mb12xx
 	drivers/sf0x
-	drivers/ll40ls
+	#drivers/ll40ls
 	drivers/trone
 	drivers/gps
-	drivers/pwm_out_sim
+	#drivers/pwm_out_sim
 	#drivers/hott
 	#drivers/hott/hott_telemetry
 	#drivers/hott/hott_sensors
 	drivers/blinkm
 	drivers/airspeed
 	drivers/ets_airspeed
-	drivers/meas_airspeed
+	drivers/ms4525_airspeed
+	drivers/ms5525_airspeed
+	drivers/sdp3x_airspeed
 	drivers/frsky_telemetry
 	modules/sensors
 	drivers/vmount
@@ -62,6 +66,7 @@ set(config_module_list
 	# General system control
 	#
 	modules/commander
+	modules/events
 	modules/load_mon
 	modules/navigator
 	modules/mavlink
@@ -72,7 +77,7 @@ set(config_module_list
 	# Estimation modules
 	#
 	modules/attitude_estimator_q
-	modules/position_estimator_inav
+	#modules/position_estimator_inav
 	modules/local_position_estimator
 	modules/ekf2
 
@@ -89,13 +94,13 @@ set(config_module_list
 	#
 	# Logging
 	#
-	modules/sdlog2
+	#modules/sdlog2
 	modules/logger
 
 	#
 	# Library modules
 	#
-	modules/param
+	modules/systemlib/param
 	modules/systemlib
 	modules/systemlib/mixer
 	modules/uORB
@@ -113,11 +118,14 @@ set(config_module_list
 	lib/geo_lookup
 	lib/conversion
 	lib/launchdetection
+	lib/led
 	lib/terrain_estimation
 	lib/runway_takeoff
 	lib/tailsitter_recovery
+	lib/version
 	lib/DriverFramework/framework
 	platforms/nuttx
+	lib/micro-CDR
 
 	# had to add for cmake, not sure why wasn't in original config
 	platforms/common
@@ -126,12 +134,12 @@ set(config_module_list
 	#
 	# OBC challenge
 	#
-	modules/bottle_drop
+	# modules/bottle_drop
 
 	#
 	# Rover apps
 	#
-	examples/rover_steering_control
+	# examples/rover_steering_control
 
 	#
 	# Demo apps

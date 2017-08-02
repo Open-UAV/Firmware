@@ -66,7 +66,7 @@ list(APPEND CMAKE_MODULE_PATH ${PX4_SOURCE_DIR}/cmake/posix)
 #		MODULE_LIST	: list of modules
 #
 #	Output:
-#		OUT	: generated builtin_commands.c src
+#		OUT	: stem of generated apps.cpp/apps.h ("apps")
 #
 #	Example:
 #		px4_posix_generate_builtin_commands(
@@ -79,6 +79,7 @@ function(px4_posix_generate_builtin_commands)
 		MULTI_VALUE MODULE_LIST
 		REQUIRED MODULE_LIST OUT
 		ARGN ${ARGN})
+
 	set(builtin_apps_string)
 	set(builtin_apps_decl_string)
 	set(command_count 0)
@@ -97,19 +98,19 @@ function(px4_posix_generate_builtin_commands)
 			set(builtin_apps_string
 				"${builtin_apps_string}\tapps[\"${MAIN}\"] = ${MAIN}_main;\n")
 			set(builtin_apps_decl_string
-				"${builtin_apps_decl_string}extern int ${MAIN}_main(int argc, char *argv[]);\n")
+				"${builtin_apps_decl_string}int ${MAIN}_main(int argc, char *argv[]);\n")
 			math(EXPR command_count "${command_count}+1")
 		endif()
 	endforeach()
-	configure_file(${PX4_SOURCE_DIR}/cmake/posix/apps.h_in
-		${OUT})
+	configure_file(${PX4_SOURCE_DIR}/src/platforms/apps.cpp.in ${OUT}.cpp)
+	configure_file(${PX4_SOURCE_DIR}/src/platforms/apps.h.in ${OUT}.h)
 endfunction()
 
 #=============================================================================
 #
 #	px4_os_add_flags
 #
-#	Set ths posix build flags.
+#	Set the posix build flags.
 #
 #	Usage:
 #		px4_os_add_flags(
@@ -132,6 +133,10 @@ endfunction()
 #		INCLUDE_DIRS				: include directories
 #		LINK_DIRS				: link directories
 #		DEFINITIONS				: definitions
+#
+#	Note that EXE_LINKER_FLAGS is not suitable for adding libraries because
+#	these flags are added before any of the object files and static libraries.
+#	Add libraries in src/firmware/posix/CMakeLists.txt.
 #
 #	Example:
 #		px4_os_add_flags(
@@ -162,95 +167,138 @@ function(px4_os_add_flags)
 		LINK_DIRS ${LINK_DIRS}
 		DEFINITIONS ${DEFINITIONS})
 
-        set(PX4_BASE )
-        set(added_include_dirs
-		src/modules/systemlib
-                src/lib/eigen
-                src/platforms/posix/include
-                mavlink/include/mavlink
-                )
-
-# Use the pthread instead of lpthread if the firmware is build for the parrot
-# bebop. This resolves some linker errors in DriverFramework, when building a 
-# static target.
-if ("${BOARD}" STREQUAL "bebop")
-  set(PX4_PTHREAD_BUILD "-pthread")
-else()
-  set(PX4_PTHREAD_BUILD "-lpthread")
-endif()
-
-if(UNIX AND APPLE)
-        set(added_definitions
-		-D__PX4_POSIX
-		-D__PX4_DARWIN
-		-D__DF_DARWIN
-		-DCLOCK_MONOTONIC=1
-		-Dnoreturn_function=__attribute__\(\(noreturn\)\)
-		-include ${PX4_INCLUDE_DIR}visibility.h
-                )
-
-        set(added_exe_linker_flags
-          ${PX4_PTHREAD_BUILD}
+	set(added_include_dirs
+		src/platforms/posix/include
 		)
 
-else()
+	# This block sets added_definitions and added_cxx_flags.
+	if(UNIX AND APPLE)
+		set(added_definitions
+			-D__PX4_POSIX
+			-D__PX4_DARWIN
+			-D__DF_DARWIN
+			-Dnoreturn_function=__attribute__\(\(noreturn\)\)
+			)
 
-        set(added_definitions
-		-D__PX4_POSIX
-		-D__PX4_LINUX
-		-D__DF_LINUX
-		-DCLOCK_MONOTONIC=1
-		-Dnoreturn_function=__attribute__\(\(noreturn\)\)
-		-include ${PX4_INCLUDE_DIR}visibility.h
-                )
+		set(added_cxx_flags)
 
-        set(added_exe_linker_flags
-		      ${PX4_PTHREAD_BUILD} -lrt
-		)
+		if (CMAKE_CXX_COMPILER_VERSION VERSION_LESS 8.0)
+			message(FATAL_ERROR "PX4 Firmware requires XCode 8 or newer on Mac OS. Version installed on this system: ${CMAKE_CXX_COMPILER_VERSION}")
+		endif()
 
-endif()
+		EXEC_PROGRAM(uname ARGS -v  OUTPUT_VARIABLE DARWIN_VERSION)
+		STRING(REGEX MATCH "[0-9]+" DARWIN_VERSION ${DARWIN_VERSION})
+		# message(STATUS "PX4 Darwin Version: ${DARWIN_VERSION}")
+		if (DARWIN_VERSION LESS 16)
+			list(APPEND added_definitions
+				-DCLOCK_MONOTONIC=1
+				-DCLOCK_REALTIME=0
+				-D__PX4_APPLE_LEGACY
+				)
+		endif()
 
-if ("${BOARD}" STREQUAL "eagle" OR "${BOARD}" STREQUAL "excelsior")
-
-	if ("$ENV{HEXAGON_ARM_SYSROOT}" STREQUAL "")
-		message(FATAL_ERROR "HEXAGON_ARM_SYSROOT not set")
 	else()
-		set(HEXAGON_ARM_SYSROOT $ENV{HEXAGON_ARM_SYSROOT})
+
+		set(added_definitions
+			-D__PX4_POSIX
+			-D__PX4_LINUX
+			-D__DF_LINUX
+			-Dnoreturn_function=__attribute__\(\(noreturn\)\)
+			)
+
+		# Use -pthread For linux/g++.
+		set(added_cxx_flags
+			-pthread
+			)
+
 	endif()
 
-	# Add the toolchain specific flags
-        set(added_cflags ${POSIX_CMAKE_C_FLAGS} --sysroot=${HEXAGON_ARM_SYSROOT})
-        set(added_cxx_flags ${POSIX_CMAKE_CXX_FLAGS} --sysroot=${HEXAGON_ARM_SYSROOT})
+	set(added_exe_linker_flags)
 
-        list(APPEND added_exe_linker_flags
-		-Wl,-rpath-link,${HEXAGON_ARM_SYSROOT}/usr/lib/arm-linux-gnueabihf
-		-Wl,-rpath-link,${HEXAGON_ARM_SYSROOT}/lib/arm-linux-gnueabihf
-		--sysroot=${HEXAGON_ARM_SYSROOT}
+	# This block sets added_c_flags (appends to others).
+	if ("${BOARD}" STREQUAL "eagle")
+
+		if ("$ENV{HEXAGON_ARM_SYSROOT}" STREQUAL "")
+			message(FATAL_ERROR "HEXAGON_ARM_SYSROOT not set")
+		else()
+			set(HEXAGON_ARM_SYSROOT $ENV{HEXAGON_ARM_SYSROOT})
+		endif()
+
+		# Add the toolchain specific flags
+		set(added_cflags ${POSIX_CMAKE_C_FLAGS} --sysroot=${HEXAGON_ARM_SYSROOT})
+
+		list(APPEND added_cxx_flags
+			${POSIX_CMAKE_CXX_FLAGS}
+			--sysroot=${HEXAGON_ARM_SYSROOT}
+			)
+
+		list(APPEND added_exe_linker_flags
+			-Wl,-rpath-link,${HEXAGON_ARM_SYSROOT}/usr/lib
+			-Wl,-rpath-link,${HEXAGON_ARM_SYSROOT}/lib
+			--sysroot=${HEXAGON_ARM_SYSROOT}
+			)
+	# This block sets added_c_flags (appends to others).
+	elseif ("${BOARD}" STREQUAL "excelsior")
+
+		if ("$ENV{HEXAGON_ARM_SYSROOT}" STREQUAL "")
+			message(FATAL_ERROR "HEXAGON_ARM_SYSROOT not set")
+		else()
+			set(HEXAGON_ARM_SYSROOT $ENV{HEXAGON_ARM_SYSROOT})
+		endif()
+
+		# Add the toolchain specific flags
+
+		set(added_cflags ${POSIX_CMAKE_C_FLAGS} --sysroot=${HEXAGON_ARM_SYSROOT}/lib32-apq8096  -mfloat-abi=softfp -mfpu=neon -mthumb-interwork)
+
+		list(APPEND added_cxx_flags
+			${POSIX_CMAKE_CXX_FLAGS}
+			--sysroot=${HEXAGON_ARM_SYSROOT}/lib32-apq8096  -mfloat-abi=softfp -mfpu=neon -mthumb-interwork
+
+			)
+
+		list(APPEND added_exe_linker_flags
+			-Wl,-rpath-link,${HEXAGON_ARM_SYSROOT}/lib32-apq8096/usr/lib
+			-Wl,-rpath-link,${HEXAGON_ARM_SYSROOT}/lib32-apq8096/lib
+
+			--sysroot=${HEXAGON_ARM_SYSROOT}/lib32-apq8096  -mfloat-abi=softfp -mfpu=neon -mthumb-interwork
+
+			)
+	elseif ("${BOARD}" STREQUAL "rpi")
+		SET(RPI_COMPILE_FLAGS
+			-mcpu=cortex-a53
+			-mfpu=neon
+			-mfloat-abi=hard
 		)
-elseif ("${BOARD}" STREQUAL "rpi" AND "$ENV{RPI_USE_CLANG}" STREQUAL "1")
+		LIST(APPEND added_c_flags ${RPI_COMPILE_FLAGS})
+		LIST(APPEND added_cxx_flags ${RPI_COMPILE_FLAGS})
 
-	# Add the toolchain specific flags
-	set(clang_added_flags
-		-m32
-		--target=arm-linux-gnueabihf
-		-ccc-gcc-name arm-linux-gnueabihf
-		--sysroot=${RPI_TOOLCHAIN_DIR}/gcc-linaro-arm-linux-gnueabihf-raspbian/arm-linux-gnueabihf/libc/)
+		FIND_PROGRAM(CXX_COMPILER_PATH ${CMAKE_CXX_COMPILER})
 
-	set(added_c_flags ${POSIX_CMAKE_C_FLAGS} ${clang_added_flags})
-	set(added_cxx_flags ${POSIX_CMAKE_CXX_FLAGS} ${clang_added_flags})
-	set(added_exe_linker_flags ${POSIX_CMAKE_EXE_LINKER_FLAGS} ${clang_added_flags})
-else()
-	# Add the toolchain specific flags
-        set(added_cflags ${POSIX_CMAKE_C_FLAGS})
-        set(added_cxx_flags ${POSIX_CMAKE_CXX_FLAGS})
+		GET_FILENAME_COMPONENT(CXX_COMPILER_PATH ${CXX_COMPILER_PATH} DIRECTORY)
+		GET_FILENAME_COMPONENT(CXX_COMPILER_PATH "${CXX_COMPILER_PATH}/../" ABSOLUTE)
 
-endif()
+		IF ("${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
+			set(CLANG_COMPILE_FLAGS
+				--target=arm-pc-linux-gnueabihf
+				-ccc-gcc-name arm-linux-gnueabihf-gcc
+				--sysroot=${CXX_COMPILER_PATH}/arm-linux-gnueabihf/libc
+				-I${CXX_COMPILER_PATH}/arm-linux-gnueabihf/libc/usr/include/
+			)
+
+			set(added_c_flags ${POSIX_CMAKE_C_FLAGS} ${CLANG_COMPILE_FLAGS})
+			list(APPEND added_cxx_flags ${POSIX_CMAKE_CXX_FLAGS} ${CLANG_COMPILE_FLAGS})
+			list(APPEND added_exe_linker_flags ${POSIX_CMAKE_EXE_LINKER_FLAGS} ${CLANG_COMPILE_FLAGS}
+				-B${CXX_COMPILER_PATH}/arm-linux-gnueabihf/libc/usr/lib
+				-L${CXX_COMPILER_PATH}/arm-linux-gnueabihf/libc/usr/lib
+			)
+		ENDIF()
+	endif()
 
 	# output
 	foreach(var ${inout_vars})
 		string(TOLOWER ${var} lower_var)
-		set(${${var}} ${${${var}}} ${added_${lower_var}} PARENT_SCOPE)
 		#message(STATUS "posix: set(${${var}} ${${${var}}} ${added_${lower_var}} PARENT_SCOPE)")
+		set(${${var}} ${${${var}}} ${added_${lower_var}} PARENT_SCOPE)
 	endforeach()
 
 endfunction()

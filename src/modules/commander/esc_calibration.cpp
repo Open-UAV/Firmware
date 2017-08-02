@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (c) 2015 PX4 Development Team. All rights reserved.
+ *   Copyright (c) 2015-2017 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -51,6 +51,7 @@
 #include <sys/ioctl.h>
 #include <systemlib/err.h>
 #include <fcntl.h>
+#include <px4_defines.h>
 #include <px4_posix.h>
 #include <px4_time.h>
 #include "drivers/drv_pwm_output.h"
@@ -60,12 +61,6 @@
 #include <drivers/drv_hrt.h>
 #include <systemlib/mavlink_log.h>
 
-/* oddly, ERROR is not defined for c++ */
-#ifdef ERROR
-# undef ERROR
-#endif
-static const int ERROR = -1;
-
 int check_if_batt_disconnected(orb_advert_t *mavlink_log_pub) {
 	struct battery_status_s battery;
 	memset(&battery,0,sizeof(battery));
@@ -74,15 +69,40 @@ int check_if_batt_disconnected(orb_advert_t *mavlink_log_pub) {
 
 	if (battery.voltage_filtered_v > 3.0f && !(hrt_absolute_time() - battery.timestamp > 500000)) {
 		mavlink_log_info(mavlink_log_pub, "Please disconnect battery and try again!");
-		return ERROR;
+		return PX4_ERROR;
 	}
-	return OK;
+	return PX4_OK;
 }
 
 int do_esc_calibration(orb_advert_t *mavlink_log_pub, struct actuator_armed_s* armed)
 {
-	int	return_code = OK;
+	int	return_code = PX4_OK;
+	
+#if defined(__PX4_POSIX_OCPOC)
+	hrt_abstime timeout_start;
+	hrt_abstime timeout_wait = 60*1000*1000;
+	armed->in_esc_calibration_mode = true;
+	calibration_log_info(mavlink_log_pub, CAL_QGC_DONE_MSG, "begin esc");
+	timeout_start = hrt_absolute_time();
+	
+	while (true) {
+		if (hrt_absolute_time() - timeout_start > timeout_wait) {
+			break;
+		}else{
+			usleep(50000);
+		}
+	}
 
+	armed->in_esc_calibration_mode = false;
+	calibration_log_info(mavlink_log_pub, CAL_QGC_DONE_MSG, "end esc");
+
+	if (return_code == OK) {
+		calibration_log_info(mavlink_log_pub, CAL_QGC_DONE_MSG, "esc");
+	}
+		  
+	return return_code;
+
+#else
 	int	fd = -1;
 
 	struct	battery_status_s battery;
@@ -119,19 +139,19 @@ int do_esc_calibration(orb_advert_t *mavlink_log_pub, struct actuator_armed_s* a
 	}
 
 	/* tell IO/FMU that its ok to disable its safety with the switch */
-	if (px4_ioctl(fd, PWM_SERVO_SET_ARM_OK, 0) != OK) {
+	if (px4_ioctl(fd, PWM_SERVO_SET_ARM_OK, 0) != PX4_OK) {
 		calibration_log_critical(mavlink_log_pub, CAL_QGC_FAILED_MSG, "Unable to disable safety switch");
 		goto Error;
 	}
 
 	/* tell IO/FMU that the system is armed (it will output values if safety is off) */
-	if (px4_ioctl(fd, PWM_SERVO_ARM, 0) != OK) {
+	if (px4_ioctl(fd, PWM_SERVO_ARM, 0) != PX4_OK) {
 		calibration_log_critical(mavlink_log_pub, CAL_QGC_FAILED_MSG, "Unable to arm system");
 		goto Error;
 	}
 
 	/* tell IO to switch off safety without using the safety switch */
-	if (px4_ioctl(fd, PWM_SERVO_SET_FORCE_SAFETY_OFF, 0) != OK) {
+	if (px4_ioctl(fd, PWM_SERVO_SET_FORCE_SAFETY_OFF, 0) != PX4_OK) {
 		calibration_log_critical(mavlink_log_pub, CAL_QGC_FAILED_MSG, "Unable to force safety off");
 		goto Error;
 	}
@@ -175,26 +195,27 @@ Out:
 		orb_unsubscribe(batt_sub);
 	}
 	if (fd != -1) {
-		if (px4_ioctl(fd, PWM_SERVO_SET_FORCE_SAFETY_ON, 0) != OK) {
+		if (px4_ioctl(fd, PWM_SERVO_SET_FORCE_SAFETY_ON, 0) != PX4_OK) {
 			calibration_log_info(mavlink_log_pub, CAL_QGC_WARNING_MSG, "Safety switch still off");
 		}
-		if (px4_ioctl(fd, PWM_SERVO_DISARM, 0) != OK) {
+		if (px4_ioctl(fd, PWM_SERVO_DISARM, 0) != PX4_OK) {
 			calibration_log_info(mavlink_log_pub, CAL_QGC_WARNING_MSG, "Servos still armed");
 		}
-		if (px4_ioctl(fd, PWM_SERVO_CLEAR_ARM_OK, 0) != OK) {
+		if (px4_ioctl(fd, PWM_SERVO_CLEAR_ARM_OK, 0) != PX4_OK) {
 			calibration_log_info(mavlink_log_pub, CAL_QGC_WARNING_MSG, "Safety switch still deactivated");
 		}
 		px4_close(fd);
 	}
 	armed->in_esc_calibration_mode = false;
 
-	if (return_code == OK) {
+	if (return_code == PX4_OK) {
 		calibration_log_info(mavlink_log_pub, CAL_QGC_DONE_MSG, "esc");
 	}
 
 	return return_code;
 
 Error:
-	return_code = ERROR;
+	return_code = PX4_ERROR;
 	goto Out;
+#endif
 }

@@ -39,6 +39,7 @@
  */
 
 #include <px4_config.h>
+#include <px4_defines.h>
 
 #include <drivers/device/i2c.h>
 
@@ -80,13 +81,7 @@
 #include <uORB/topics/subsystem_info.h>
 
 /* Default I2C bus */
-#define PX4_I2C_BUS_DEFAULT		PX4_I2C_BUS_EXPANSION
-
-/* Oddly, ERROR is not defined for C++ */
-#ifdef ERROR
-# undef ERROR
-#endif
-static const int ERROR = -1;
+static constexpr uint8_t PX4_I2C_BUS_DEFAULT = PX4_I2C_BUS_EXPANSION;
 
 #ifndef CONFIG_SCHED_WORKQUEUE
 # error This requires CONFIG_SCHED_WORKQUEUE.
@@ -110,7 +105,6 @@ public:
 
 private:
 	ringbuffer::RingBuffer		*_reports;
-	perf_counter_t		_buffer_overflows;
 
 	/* this class has pointer data members and should not be copied */
 	Airspeed(const Airspeed &);
@@ -133,10 +127,9 @@ protected:
 	void update_status();
 
 	work_s			_work;
-	float			_max_differential_pressure_pa;
 	bool			_sensor_ok;
 	bool			_last_published_sensor_ok;
-	int			_measure_ticks;
+	uint32_t		_measure_ticks;
 	bool			_collect_phase;
 	float			_diff_pres_offset;
 

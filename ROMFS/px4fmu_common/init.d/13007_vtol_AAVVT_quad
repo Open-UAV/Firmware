@@ -3,6 +3,7 @@
 # @name Generic AAVVT v-tail plane airframe with Quad VTOL.
 #
 # @type Standard VTOL
+# @class VTOL
 #
 # @maintainer Sander Smeets <sander@droneslab.com>
 #
@@ -31,13 +32,15 @@ then
 	param set MC_YAWRATE_I 0.02
 	param set MC_YAWRATE_D 0.0
 	param set MC_YAWRATE_FF 0.0
+	param set MC_YAWRATE_MAX 40
+	param set MC_YAWRAUTO_MAX 40
 
 	param set VT_MOT_COUNT 4
 	param set VT_IDLE_PWM_MC 1080
 	param set VT_TYPE 2
 fi
 
-set MIXER vtol_quad_x
+set MIXER quad_x
 set PWM_OUT 1234
 set PWM_RATE 400
 

@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (C) 2012 PX4 Development Team. All rights reserved.
+ *   Copyright (c) 2012-2017 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -57,6 +57,7 @@
 #define DRV_MAG_DEVTYPE_ACCELSIM 0x03
 #define DRV_MAG_DEVTYPE_MPU9250  0x04
 #define DRV_MAG_DEVTYPE_LIS3MDL  0x05
+#define DRV_MAG_DEVTYPE_IST8310  0x06
 #define DRV_ACC_DEVTYPE_LSM303D  0x11
 #define DRV_ACC_DEVTYPE_BMA180   0x12
 #define DRV_ACC_DEVTYPE_MPU6000  0x13
@@ -75,7 +76,20 @@
 #define DRV_ACC_DEVTYPE_MPU6500  0x34
 #define DRV_GYR_DEVTYPE_MPU6050  0x35
 #define DRV_GYR_DEVTYPE_MPU6500  0x36
-
+#define DRV_ACC_DEVTYPE_ICM20602	0x37
+#define DRV_GYR_DEVTYPE_ICM20602	0x38
+#define DRV_ACC_DEVTYPE_ICM20608	0x39
+#define DRV_GYR_DEVTYPE_ICM20608	0x3A
+#define DRV_ACC_DEVTYPE_ICM20689	0x3B
+#define DRV_GYR_DEVTYPE_ICM20689	0x3C
+#define DRV_BARO_DEVTYPE_MS5611		0x3D
+#define DRV_BARO_DEVTYPE_MS5607		0x3E
+#define DRV_BARO_DEVTYPE_BMP280		0x3F
+#define DRV_BARO_DEVTYPE_LPS25H		0x40
+#define DRV_ACC_DEVTYPE_BMI055		0x41
+#define DRV_GYR_DEVTYPE_BMI055		0x42
+#define DRV_MAG_DEVTYPE_BMM150		0x43
+#define DRV_BARO_DEVTYPE_BMP285		0x44
 
 /*
  * ioctl() definitions

@@ -38,11 +38,9 @@
  * @author Lorenz Meier <lm@inf.ethz.ch>
  */
 
-#include "tests.h"
+#include "tests_main.h"
 
 #include <px4_config.h>
-
-#include <sys/types.h>
 
 #include <stdio.h>
 #include <string.h>
@@ -52,7 +50,7 @@
 // Not using Eigen at the moment
 #define TESTS_EIGEN_DISABLE
 
-#include "tests.h"
+#include "tests_main.h"
 
 /****************************************************************************
  * Private Function Prototypes
@@ -81,10 +79,13 @@ const struct {
 	{"jig",			test_jig,	OPT_NOJIGTEST | OPT_NOALLTEST},
 #ifdef __PX4_NUTTX
 	{"adc",			test_adc,	OPT_NOJIGTEST},
+	{"file",		test_file,	OPT_NOJIGTEST | OPT_NOALLTEST},
 	{"led",			test_led,	0},
 	{"sensors",		test_sensors,	0},
 	{"time",		test_time,	OPT_NOJIGTEST},
 	{"uart_baudchange",	test_uart_baudchange,	OPT_NOJIGTEST},
+	{"uart_break",		test_uart_break,	OPT_NOJIGTEST | OPT_NOALLTEST},
+	{"uart_console",	test_uart_console,	OPT_NOJIGTEST | OPT_NOALLTEST},
 #else
 	{"rc",			rc_tests_main,	0},
 #endif /* __PX4_NUTTX */
@@ -92,17 +93,18 @@ const struct {
 	/* external tests */
 	{"commander",		commander_tests_main,	0},
 	{"controllib",		controllib_test_main,	0},
-	//{"mavlink",		mavlink_tests_main,	0}, // TODO: fix mavlink_tests
+	{"mavlink",		mavlink_tests_main,	0},
+	{"mc_pos_control",	mc_pos_control_tests_main,	0},
 	{"sf0x",		sf0x_tests_main,	0},
 #ifndef __PX4_DARWIN
 	{"uorb",		uorb_tests_main,	0},
 	{"hysteresis",		test_hysteresis,	0},
-	{"mixer",		test_mixer,	OPT_NOJIGTEST},
 #endif /* __PX4_DARWIN */
+	{"mixer",		test_mixer,	OPT_NOJIGTEST},
 	{"autodeclination",	test_autodeclination,	0},
 	{"bson",		test_bson,	0},
 	{"conv",		test_conv, 0},
-	{"file",		test_file,	OPT_NOJIGTEST | OPT_NOALLTEST},
+	{"dataman",		test_dataman, OPT_NOJIGTEST | OPT_NOALLTEST},
 	{"file2",		test_file2,	OPT_NOJIGTEST},
 	{"float",		test_float,	0},
 	{"gpio",		test_gpio,	OPT_NOJIGTEST | OPT_NOALLTEST},
@@ -114,6 +116,7 @@ const struct {
 	{"matrix",		test_matrix,	0},
 	{"mount",		test_mount,	OPT_NOJIGTEST | OPT_NOALLTEST},
 	{"param",		test_param,	0},
+	{"parameters",	test_parameters,	0},
 	{"perf",		test_perf,	OPT_NOJIGTEST},
 	{"ppm",			test_ppm,	OPT_NOJIGTEST | OPT_NOALLTEST},
 	{"ppm_loopback",	test_ppm_loopback,	OPT_NOALLTEST},
@@ -121,7 +124,6 @@ const struct {
 	{"servo",		test_servo,	OPT_NOJIGTEST | OPT_NOALLTEST},
 	{"sleep",		test_sleep,	OPT_NOJIGTEST},
 	{"tone",		test_tone,	0},
-	{"uart_console",	test_uart_console,	OPT_NOJIGTEST | OPT_NOALLTEST},
 	{"uart_loopback",	test_uart_loopback,	OPT_NOJIGTEST | OPT_NOALLTEST},
 	{"uart_send",		test_uart_send,	OPT_NOJIGTEST | OPT_NOALLTEST},
 	{NULL,			NULL, 		0}
@@ -263,7 +265,14 @@ int tests_main(int argc, char *argv[])
 
 	for (unsigned i = 0; tests[i].name; i++) {
 		if (!strcmp(tests[i].name, argv[1])) {
-			return tests[i].fn(argc - 1, argv + 1);
+			if (tests[i].fn(argc - 1, argv + 1) == 0) {
+				printf("%s PASSED\n", tests[i].name);
+				return 0;
+
+			} else {
+				printf("%s FAILED\n", tests[i].name);
+				return -1;
+			}
 		}
 	}
 

@@ -39,6 +39,7 @@
  */
 
 #include <px4_config.h>
+#include <px4_defines.h>
 
 #include <drivers/device/i2c.h>
 
@@ -90,12 +91,6 @@
 
 #define TRONE_CONVERSION_INTERVAL 50000 /* 50ms */
 
-/* oddly, ERROR is not defined for c++ */
-#ifdef ERROR
-# undef ERROR
-#endif
-static const int ERROR = -1;
-
 #ifndef CONFIG_SCHED_WORKQUEUE
 # error This requires CONFIG_SCHED_WORKQUEUE.
 #endif
@@ -135,7 +130,6 @@ private:
 
 	perf_counter_t		_sample_perf;
 	perf_counter_t		_comms_errors;
-	perf_counter_t		_buffer_overflows;
 
 	/**
 	* Test whether the device supported by the driver is present at a
@@ -243,8 +237,7 @@ TRONE::TRONE(int bus, int address) :
 	_orb_class_instance(-1),
 	_distance_sensor_topic(nullptr),
 	_sample_perf(perf_alloc(PC_ELAPSED, "tr1_read")),
-	_comms_errors(perf_alloc(PC_COUNT, "tr1_com_err")),
-	_buffer_overflows(perf_alloc(PC_COUNT, "tr1_buf_of"))
+	_comms_errors(perf_alloc(PC_COUNT, "tr1_com_err"))
 {
 	// up the retries since the device misses the first measure attempts
 	I2C::_retries = 3;
@@ -273,13 +266,12 @@ TRONE::~TRONE()
 	// free perf counters
 	perf_free(_sample_perf);
 	perf_free(_comms_errors);
-	perf_free(_buffer_overflows);
 }
 
 int
 TRONE::init()
 {
-	int ret = ERROR;
+	int ret = PX4_ERROR;
 
 	/* do I2C init (and probe) first */
 	if (I2C::init() != OK) {
@@ -604,9 +596,7 @@ TRONE::collect()
 		orb_publish(ORB_ID(distance_sensor), _distance_sensor_topic, &report);
 	}
 
-	if (_reports->force(&report)) {
-		perf_count(_buffer_overflows);
-	}
+	_reports->force(&report);
 
 	/* notify anyone waiting for data */
 	poll_notify(POLLIN);
@@ -711,7 +701,6 @@ TRONE::print_info()
 {
 	perf_print_counter(_sample_perf);
 	perf_print_counter(_comms_errors);
-	perf_print_counter(_buffer_overflows);
 	printf("poll interval:  %u ticks\n", _measure_ticks);
 	_reports->print_info("report queue");
 }
@@ -721,12 +710,6 @@ TRONE::print_info()
  */
 namespace trone
 {
-
-/* oddly, ERROR is not defined for c++ */
-#ifdef ERROR
-# undef ERROR
-#endif
-const int ERROR = -1;
 
 TRONE	*g_dev;
 

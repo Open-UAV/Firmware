@@ -79,10 +79,10 @@ static task_entry taskmap[PX4_MAX_TASKS] = {};
 
 typedef struct {
 	px4_main_t entry;
-	const char *name;
+	char name[16]; //pthread_setname_np is restricted to 16 chars
 	int argc;
 	char *argv[];
-	// strings are allocated after the
+	// strings are allocated after the struct data
 } pthdata_t;
 
 static void *entry_adapter(void *ptr)
@@ -95,10 +95,7 @@ static void *entry_adapter(void *ptr)
 #ifdef __PX4_DARWIN
 	rv = pthread_setname_np(data->name);
 #else
-	char buf[17];
-	snprintf(buf, 16, "%s", data->name);
-	buf[16] = '0';
-	rv = pthread_setname_np(pthread_self(), buf);
+	rv = pthread_setname_np(pthread_self(), data->name);
 #endif
 
 	if (rv) {
@@ -111,7 +108,7 @@ static void *entry_adapter(void *ptr)
 	px4_task_exit(0);
 	PX4_DEBUG("After px4_task_exit");
 
-	return NULL;
+	return nullptr;
 }
 
 void
@@ -137,10 +134,10 @@ px4_task_t px4_task_spawn_cmd(const char *name, int scheduler, int priority, int
 	struct sched_param param = {};
 
 	// Calculate argc
-	while (p != (char *)0) {
+	while (p != (char *)nullptr) {
 		p = argv[argc];
 
-		if (p == (char *)0) {
+		if (p == (char *)nullptr) {
 			break;
 		}
 
@@ -155,7 +152,8 @@ px4_task_t px4_task_spawn_cmd(const char *name, int scheduler, int priority, int
 	memset(taskdata, 0, structsize + len);
 	offset = ((unsigned long)taskdata) + structsize;
 
-	taskdata->name = name;
+	strncpy(taskdata->name, name, 16);
+	taskdata->name[15] = 0;
 	taskdata->entry = entry;
 	taskdata->argc = argc;
 
@@ -167,7 +165,7 @@ px4_task_t px4_task_spawn_cmd(const char *name, int scheduler, int priority, int
 	}
 
 	// Must add NULL at end of argv
-	taskdata->argv[argc] = (char *)0;
+	taskdata->argv[argc] = (char *)nullptr;
 
 	PX4_DEBUG("starting task %s", name);
 
@@ -251,7 +249,7 @@ px4_task_t px4_task_spawn_cmd(const char *name, int scheduler, int priority, int
 
 		if (rv == EPERM) {
 			//printf("WARNING: NOT RUNING AS ROOT, UNABLE TO RUN REALTIME THREADS\n");
-			rv = pthread_create(&taskmap[taskid].pid, NULL, &entry_adapter, (void *) taskdata);
+			rv = pthread_create(&taskmap[taskid].pid, nullptr, &entry_adapter, (void *) taskdata);
 
 			if (rv != 0) {
 				PX4_ERR("px4_task_spawn_cmd: failed to create thread %d %d\n", rv, errno);
@@ -293,9 +291,10 @@ int px4_task_delete(px4_task_t id)
 
 	// If current thread then exit, otherwise cancel
 	if (pthread_self() == pid) {
+		pthread_join(pid, nullptr);
 		taskmap[id].isused = false;
 		pthread_mutex_unlock(&task_mutex);
-		pthread_exit(0);
+		pthread_exit(nullptr);
 
 	} else {
 		rv = pthread_cancel(pid);
@@ -387,9 +386,21 @@ bool px4_task_is_running(const char *taskname)
 	return false;
 }
 
-unsigned long px4_getpid()
+px4_task_t px4_getpid()
 {
-	return (unsigned long)pthread_self();
+	pthread_t pid = pthread_self();
+	px4_task_t ret = -1;
+
+	pthread_mutex_lock(&task_mutex);
+
+	for (int i = 0; i < PX4_MAX_TASKS; i++) {
+		if (taskmap[i].isused && taskmap[i].pid == pid) {
+			ret = i;
+		}
+	}
+
+	pthread_mutex_unlock(&task_mutex);
+	return ret;
 }
 
 const char *px4_get_taskname()
@@ -410,7 +421,7 @@ const char *px4_get_taskname()
 	return prog_name;
 }
 
-int px4_prctl(int option, const char *arg2, unsigned pid)
+int px4_prctl(int option, const char *arg2, px4_task_t pid)
 {
 	int rv;
 

@@ -39,6 +39,7 @@
  */
 
 #include <px4_config.h>
+#include <px4_log.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -50,12 +51,11 @@
 #include <sys/ioctl.h>
 #include <sys/stat.h>
 
-#include <nuttx/i2c.h>
+#include <nuttx/i2c/i2c_master.h>
 
 #include <board_config.h>
 
 #include "systemlib/systemlib.h"
-#include "systemlib/err.h"
 
 #ifndef PX4_I2C_BUS_ONBOARD
 #  error PX4_I2C_BUS_ONBOARD not defined, no device interface
@@ -68,7 +68,7 @@ __EXPORT int i2c_main(int argc, char *argv[]);
 
 static int transfer(uint8_t address, uint8_t *send, unsigned send_len, uint8_t *recv, unsigned recv_len);
 
-static struct i2c_dev_s *i2c;
+static struct i2c_master_s *i2c;
 
 int i2c_main(int argc, char *argv[])
 {
@@ -76,7 +76,8 @@ int i2c_main(int argc, char *argv[])
 	i2c = px4_i2cbus_initialize(PX4_I2C_BUS_ONBOARD);
 
 	if (i2c == NULL) {
-		errx(1, "failed to locate I2C bus");
+		PX4_ERR("failed to locate I2C bus");
+		return 1;
 	}
 
 	usleep(100000);
@@ -85,17 +86,20 @@ int i2c_main(int argc, char *argv[])
 	int ret = transfer(PX4_I2C_OBDEV_PX4IO, buf, sizeof(buf), NULL, 0);
 
 	if (ret) {
-		errx(1, "send failed - %d", ret);
+		PX4_ERR("send failed - %d", ret);
+		return 1;
 	}
 
 	uint32_t val;
 	ret = transfer(PX4_I2C_OBDEV_PX4IO, NULL, 0, (uint8_t *)&val, sizeof(val));
 
 	if (ret) {
-		errx(1, "recive failed - %d", ret);
+		PX4_ERR("recive failed - %d", ret);
+		return 1;
 	}
 
-	errx(0, "got 0x%08x", val);
+	PX4_INFO("got 0x%08x", val);
+	return 0;
 }
 
 static int
@@ -110,6 +114,7 @@ transfer(uint8_t address, uint8_t *send, unsigned send_len, uint8_t *recv, unsig
 	msgs = 0;
 
 	if (send_len > 0) {
+		msgv[msgs].frequency = 400000;
 		msgv[msgs].addr = address;
 		msgv[msgs].flags = 0;
 		msgv[msgs].buffer = send;
@@ -118,6 +123,7 @@ transfer(uint8_t address, uint8_t *send, unsigned send_len, uint8_t *recv, unsig
 	}
 
 	if (recv_len > 0) {
+		msgv[msgs].frequency = 400000;
 		msgv[msgs].addr = address;
 		msgv[msgs].flags = I2C_M_READ;
 		msgv[msgs].buffer = recv;
@@ -129,12 +135,6 @@ transfer(uint8_t address, uint8_t *send, unsigned send_len, uint8_t *recv, unsig
 		return -1;
 	}
 
-	/*
-	 * I2C architecture means there is an unavoidable race here
-	 * if there are any devices on the bus with a different frequency
-	 * preference.  Really, this is pointless.
-	 */
-	I2C_SETFREQUENCY(i2c, 400000);
 	ret = I2C_TRANSFER(i2c, &msgv[0], msgs);
 
 	// reset the I2C bus to unwedge on error

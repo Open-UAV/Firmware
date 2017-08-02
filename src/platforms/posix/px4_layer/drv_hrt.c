@@ -41,6 +41,7 @@
 #include <px4_posix.h>
 #include <px4_defines.h>
 #include <px4_workqueue.h>
+#include <px4_tasks.h>
 #include <drivers/drv_hrt.h>
 #include <semaphore.h>
 #include <time.h>
@@ -93,14 +94,8 @@ static void hrt_unlock(void)
 	px4_sem_post(&_hrt_lock);
 }
 
-#if (defined(__APPLE__) && defined(__MACH__))
-#include <time.h>
+#if defined(__PX4_APPLE_LEGACY)
 #include <sys/time.h>
-#define CLOCK_REALTIME 0
-
-#ifndef CLOCK_MONOTONIC
-#define CLOCK_MONOTONIC 1
-#endif
 
 int px4_clock_gettime(clockid_t clk_id, struct timespec *tp)
 {
@@ -123,7 +118,7 @@ int px4_clock_settime(clockid_t clk_id, struct timespec *tp)
 	return 0;
 }
 
-#elif defined(__QURT)
+#elif defined(__PX4_QURT)
 
 #include "dspal_time.h"
 
@@ -337,16 +332,29 @@ void	hrt_start_delay()
 	pthread_mutex_unlock(&_hrt_mutex);
 }
 
+void	hrt_stop_delay_delta(hrt_abstime delta)
+{
+	pthread_mutex_lock(&_hrt_mutex);
+
+	uint64_t delta_measured = _hrt_absolute_time_internal() - _start_delay_time;
+
+	if (delta_measured < delta) {
+		delta = delta_measured;
+	}
+
+	_delay_interval += delta;
+	_start_delay_time = 0;
+
+	pthread_mutex_unlock(&_hrt_mutex);
+
+}
+
 void	hrt_stop_delay()
 {
 	pthread_mutex_lock(&_hrt_mutex);
 	uint64_t delta = _hrt_absolute_time_internal() - _start_delay_time;
 	_delay_interval += delta;
 	_start_delay_time = 0;
-
-	if (delta > 10000) {
-		PX4_INFO("simulator is slow. Delay added: %" PRIu64 " us", delta);
-	}
 
 	pthread_mutex_unlock(&_hrt_mutex);
 

@@ -55,7 +55,7 @@ using namespace device;
 pthread_mutex_t filemutex = PTHREAD_MUTEX_INITIALIZER;
 px4_sem_t lockstep_sem;
 bool sim_lockstep = false;
-bool sim_delay = false;
+volatile bool sim_delay = false;
 
 extern "C" {
 
@@ -67,7 +67,7 @@ extern "C" {
 	inline bool valid_fd(int fd)
 	{
 		pthread_mutex_lock(&filemutex);
-		bool ret = (fd < PX4_MAX_FD && fd >= 0 && filemap[fd] != NULL);
+		bool ret = (fd < PX4_MAX_FD && fd >= 0 && filemap[fd] != nullptr);
 		pthread_mutex_unlock(&filemutex);
 		return ret;
 	}
@@ -75,7 +75,7 @@ extern "C" {
 	inline VDev *get_vdev(int fd)
 	{
 		pthread_mutex_lock(&filemutex);
-		bool valid = (fd < PX4_MAX_FD && fd >= 0 && filemap[fd] != NULL);
+		bool valid = (fd < PX4_MAX_FD && fd >= 0 && filemap[fd] != nullptr);
 		VDev *dev;
 
 		if (valid) {
@@ -115,7 +115,7 @@ extern "C" {
 			pthread_mutex_lock(&filemutex);
 
 			for (i = 0; i < PX4_MAX_FD; ++i) {
-				if (filemap[i] == 0) {
+				if (filemap[i] == nullptr) {
 					filemap[i] = new device::file_t(flags, dev, i);
 					break;
 				}
@@ -168,6 +168,11 @@ extern "C" {
 		if (dev) {
 			pthread_mutex_lock(&filemutex);
 			ret = dev->close(filemap[fd]);
+
+			if (filemap[fd] != nullptr) {
+				delete filemap[fd];
+			}
+
 			filemap[fd] = nullptr;
 			pthread_mutex_unlock(&filemutex);
 			PX4_DEBUG("px4_close fd = %d", fd);
@@ -278,7 +283,11 @@ extern "C" {
 		}
 
 		PX4_DEBUG("Called px4_poll timeout = %d", timeout);
+
 		px4_sem_init(&sem, 0, 0);
+
+		// sem use case is a signal
+		px4_sem_setprotocol(&sem, SEM_PRIO_NONE);
 
 		// Go through all fds and check them for a pollable state
 		bool fd_pollable = false;
@@ -286,7 +295,7 @@ extern "C" {
 		for (i = 0; i < nfds; ++i) {
 			fds[i].sem     = &sem;
 			fds[i].revents = 0;
-			fds[i].priv    = NULL;
+			fds[i].priv    = nullptr;
 
 			VDev *dev = get_vdev(fds[i].fd);
 
@@ -409,6 +418,11 @@ extern "C" {
 	void px4_enable_sim_lockstep()
 	{
 		px4_sem_init(&lockstep_sem, 0, 0);
+
+		// lockstep_sem use case is a signal
+
+		px4_sem_setprotocol(&lockstep_sem, SEM_PRIO_NONE);
+
 		sim_lockstep = true;
 		sim_delay = false;
 	}

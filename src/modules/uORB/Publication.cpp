@@ -37,21 +37,6 @@
  */
 
 #include "Publication.hpp"
-#include "topics/vehicle_attitude.h"
-#include "topics/vehicle_local_position.h"
-#include "topics/vehicle_global_position.h"
-#include "topics/debug_key_value.h"
-#include "topics/actuator_controls.h"
-#include "topics/vehicle_global_velocity_setpoint.h"
-#include "topics/vehicle_attitude_setpoint.h"
-#include "topics/vehicle_rates_setpoint.h"
-#include "topics/actuator_outputs.h"
-#include "topics/actuator_direct.h"
-#include "topics/tecs_status.h"
-#include "topics/rc_channels.h"
-#include "topics/filtered_bottom_flow.h"
-#include "topics/ekf2_innovations.h"
-
 #include <px4_defines.h>
 
 namespace uORB
@@ -106,21 +91,5 @@ PublicationNode::PublicationNode(const struct orb_metadata *meta,
 {
 	if (list != nullptr) { list->add(this); }
 }
-
-// explicit template instantiation
-template class __EXPORT Publication<vehicle_attitude_s>;
-template class __EXPORT Publication<vehicle_local_position_s>;
-template class __EXPORT Publication<vehicle_global_position_s>;
-template class __EXPORT Publication<debug_key_value_s>;
-template class __EXPORT Publication<actuator_controls_s>;
-template class __EXPORT Publication<vehicle_global_velocity_setpoint_s>;
-template class __EXPORT Publication<vehicle_attitude_setpoint_s>;
-template class __EXPORT Publication<vehicle_rates_setpoint_s>;
-template class __EXPORT Publication<actuator_outputs_s>;
-template class __EXPORT Publication<actuator_direct_s>;
-template class __EXPORT Publication<tecs_status_s>;
-template class __EXPORT Publication<rc_channels_s>;
-template class __EXPORT Publication<filtered_bottom_flow_s>;
-template class __EXPORT Publication<ekf2_innovations_s>;
 
 }

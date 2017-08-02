@@ -41,6 +41,7 @@
  */
 
 #include <px4_config.h>
+#include <px4_tasks.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -60,7 +61,6 @@
 #include <uORB/topics/wind_estimate.h>
 #include <uORB/topics/parameter_update.h>
 #include <uORB/topics/vehicle_global_position.h>
-#include <systemlib/systemlib.h>
 #include <systemlib/param/param.h>
 #include <systemlib/err.h>
 #include <systemlib/mavlink_log.h>
@@ -206,7 +206,7 @@ BottleDrop::~BottleDrop()
 
 			/* if we have given up, kill it */
 			if (++i > 50) {
-				task_delete(_main_task);
+				px4_task_delete(_main_task);
 				break;
 			}
 		} while (_main_task != -1);
@@ -225,7 +225,7 @@ BottleDrop::start()
 					SCHED_DEFAULT,
 					SCHED_PRIORITY_DEFAULT + 15,
 					1500,
-					(main_t)&BottleDrop::task_main_trampoline,
+					(px4_main_t)&BottleDrop::task_main_trampoline,
 					nullptr);
 
 	if (_main_task < 0) {
@@ -653,7 +653,7 @@ BottleDrop::task_main()
 						// We're close enough - open the bay
 						distance_open_door = math::max(10.0f, 3.0f * fabsf(t_door * groundspeed_body));
 
-						if (isfinite(distance_real) && distance_real < distance_open_door &&
+						if (PX4_ISFINITE(distance_real) && distance_real < distance_open_door &&
 						    fabsf(approach_error) < math::radians(20.0f)) {
 							open_bay();
 							_drop_state = DROP_STATE_BAY_OPEN;
@@ -671,7 +671,7 @@ BottleDrop::task_main()
 						map_projection_reproject(&ref, x_f, y_f, &x_f_NED, &y_f_NED);
 						future_distance = get_distance_to_next_waypoint(x_f_NED, y_f_NED, _drop_position.lat, _drop_position.lon);
 
-						if (isfinite(distance_real) &&
+						if (PX4_ISFINITE(distance_real) &&
 						    (distance_real < precision) && ((distance_real < future_distance))) {
 							drop();
 							_drop_state = DROP_STATE_DROPPED;

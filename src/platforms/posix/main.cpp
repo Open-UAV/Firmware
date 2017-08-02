@@ -48,13 +48,15 @@
 #include <stdio.h>
 #include "apps.h"
 #include "px4_middleware.h"
+#include "px4_posix.h"
+#include "px4_log.h"
 #include "DriverFramework.hpp"
 #include <termios.h>
 #include <sys/stat.h>
 
 namespace px4
 {
-void init_once(void);
+void init_once();
 }
 
 using namespace std;
@@ -69,7 +71,7 @@ const unsigned path_max_len = PATH_MAX;
 const unsigned path_max_len = 1024;
 #endif
 
-static bool _ExitFlag = false;
+static volatile bool _ExitFlag = false;
 
 static struct termios orig_term;
 
@@ -157,7 +159,7 @@ static int mkpath(const char *path, mode_t mode)
 	status = 0;
 	pp = copypath;
 
-	while (status == 0 && (sp = strchr(pp, '/')) != 0) {
+	while (status == 0 && (sp = strchr(pp, '/')) != nullptr) {
 		if (sp != pp) {
 			/* Neither root nor double slash in path */
 			*sp = '\0';
@@ -191,6 +193,14 @@ static void print_prompt()
 
 static void run_cmd(const vector<string> &appargs, bool exit_on_fail, bool silently_fail = false)
 {
+	static apps_map_type apps;
+	static bool initialized = false;
+
+	if (!initialized) {
+		init_app_map(apps);
+		initialized = true;
+	}
+
 	// command is appargs[0]
 	string command = appargs[0];
 
@@ -204,7 +214,7 @@ static void run_cmd(const vector<string> &appargs, bool exit_on_fail, bool silen
 			++i;
 		}
 
-		arg[i] = (char *)0;
+		arg[i] = (char *)nullptr;
 
 		int retval = apps[command](i, (char **)arg);
 
@@ -216,8 +226,8 @@ static void run_cmd(const vector<string> &appargs, bool exit_on_fail, bool silen
 			}
 		}
 
-	} else if (command.compare("help") == 0) {
-		list_builtins();
+	} else if (command == "help") {
+		list_builtins(apps);
 
 	} else if (command.length() == 0 || command[0] == '#') {
 		// Do nothing
@@ -242,14 +252,15 @@ static void usage()
 
 static void process_line(string &line, bool exit_on_fail)
 {
-	vector<string> appargs(10);
+	vector<string> appargs(20);
 
 	stringstream(line) >> appargs[0] >> appargs[1] >> appargs[2] >> appargs[3] >> appargs[4] >> appargs[5] >> appargs[6] >>
-			   appargs[7] >> appargs[8] >> appargs[9];
+			   appargs[7] >> appargs[8] >> appargs[9] >> appargs[10] >> appargs[11] >> appargs[12] >> appargs[13] >>
+			   appargs[14] >> appargs[15] >> appargs[16] >> appargs[17] >> appargs[18] >> appargs[19];
 	run_cmd(appargs, exit_on_fail);
 }
 
-static void restore_term(void)
+static void restore_term()
 {
 	cout << "Restoring terminal\n";
 	tcsetattr(0, TCSANOW, &orig_term);
@@ -262,7 +273,7 @@ bool px4_exit_requested(void)
 
 static void set_cpu_scaling()
 {
-#ifdef __PX4_POSIX_EAGLE
+#if defined(__PX4_POSIX_EAGLE) || defined(__PX4_POSIX_EXCELSIOR)
 	// On Snapdragon we miss updates in sdlog2 unless all 4 CPUs are run
 	// at the maximum frequency all the time.
 	// Interestingely, cpu0 and cpu3 set the scaling for all 4 CPUs on Snapdragon.
@@ -275,7 +286,13 @@ static void set_cpu_scaling()
 #endif
 }
 
+#ifdef __PX4_SITL_MAIN_OVERRIDE
+int SITL_MAIN(int argc, char **argv);
+
+int SITL_MAIN(int argc, char **argv)
+#else
 int main(int argc, char **argv)
+#endif
 {
 	bool daemon_mode = false;
 	bool chroot_on = false;
@@ -293,17 +310,17 @@ int main(int argc, char **argv)
 	sig_fpe.sa_handler = _SigFpeHandler;
 	sig_fpe.sa_flags = 0;// not SA_RESTART!;
 
-	sigaction(SIGINT, &sig_int, NULL);
+	sigaction(SIGINT, &sig_int, nullptr);
 	//sigaction(SIGTERM, &sig_int, NULL);
-	sigaction(SIGFPE, &sig_fpe, NULL);
+	sigaction(SIGFPE, &sig_fpe, nullptr);
 
 	set_cpu_scaling();
 
 	int index = 1;
-	string  commands_file = "";
+	string  commands_file;
 	int positional_arg_count = 0;
-	string data_path = "";
-	string node_name = "";
+	string data_path;
+	string node_name;
 
 	// parse arguments
 	while (index < argc) {
@@ -358,15 +375,19 @@ int main(int argc, char **argv)
 		return -1;
 	}
 
+	bool symlinks_needed = true;
+
 	if (positional_arg_count == 1) { //data path is optional
 		commands_file = data_path;
-		data_path = ".";
+		symlinks_needed = false;
+
+	} else {
+		cout << "data path: " << data_path << endl;
 	}
 
-	cout << "data path: " << data_path << endl;
 	cout << "commands file: " << commands_file << endl;
 
-	if (commands_file.size() < 1) {
+	if (commands_file.empty()) {
 		PX4_ERR("Error commands file not specified");
 		return -1;
 	}
@@ -377,32 +398,34 @@ int main(int argc, char **argv)
 	}
 
 	// create sym-links
-	vector<string> path_sym_links;
-	path_sym_links.push_back("ROMFS");
-	path_sym_links.push_back("posix-configs");
-	path_sym_links.push_back("test_data");
+	if (symlinks_needed) {
+		vector<string> path_sym_links;
+		path_sym_links.push_back("ROMFS");
+		path_sym_links.push_back("posix-configs");
+		path_sym_links.push_back("test_data");
 
-	for (int i = 0; i < path_sym_links.size(); i++) {
-		string path_sym_link = path_sym_links[i];
-		//cout << "path sym link: " << path_sym_link << endl;
-		string src_path = data_path + "/" + path_sym_link;
-		string dest_path =  pwd() + "/" +  path_sym_link;
+		for (int i = 0; i < path_sym_links.size(); i++) {
+			string path_sym_link = path_sym_links[i];
+			//cout << "path sym link: " << path_sym_link << endl;
+			string src_path = data_path + "/" + path_sym_link;
+			string dest_path =  pwd() + "/" +  path_sym_link;
 
-		PX4_DEBUG("Creating symlink %s -> %s", src_path.c_str(), dest_path.c_str());
+			PX4_DEBUG("Creating symlink %s -> %s", src_path.c_str(), dest_path.c_str());
 
-		if (dirExists(path_sym_link)) { continue; }
+			if (dirExists(path_sym_link)) { continue; }
 
-		// create sym-links
-		int ret = symlink(src_path.c_str(), dest_path.c_str());
+			// create sym-links
+			int ret = symlink(src_path.c_str(), dest_path.c_str());
 
-		if (ret != 0) {
-			PX4_ERR("Error creating symlink %s -> %s",
-				src_path.c_str(), dest_path.c_str());
-			return ret;
+			if (ret != 0) {
+				PX4_ERR("Error creating symlink %s -> %s",
+					src_path.c_str(), dest_path.c_str());
+				return ret;
 
-		} else {
-			PX4_DEBUG("Successfully created symlink %s -> %s",
-				  src_path.c_str(), dest_path.c_str());
+			} else {
+				PX4_DEBUG("Successfully created symlink %s -> %s",
+					  src_path.c_str(), dest_path.c_str());
+			}
 		}
 	}
 
@@ -429,7 +452,7 @@ int main(int argc, char **argv)
 	px4::init(argc, argv, "px4");
 
 	// if commandfile is present, process the commands from the file
-	if (commands_file.size() != 0) {
+	if (!commands_file.empty()) {
 		ifstream infile(commands_file.c_str());
 
 		if (infile.is_open()) {
@@ -478,7 +501,7 @@ int main(int argc, char **argv)
 	}
 
 	if (!daemon_mode) {
-		string mystr = "";
+		string mystr;
 		string string_buffer[CMD_BUFF_SIZE];
 		int buf_ptr_write = 0;
 		int buf_ptr_read = 0;
@@ -491,7 +514,7 @@ int main(int argc, char **argv)
 		term.c_lflag &= ~ICANON;
 		term.c_lflag &= ~ECHO;
 		tcsetattr(0, TCSANOW, &term);
-		setbuf(stdin, NULL);
+		setbuf(stdin, nullptr);
 
 		while (!_ExitFlag) {
 

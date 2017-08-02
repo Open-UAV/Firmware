@@ -36,12 +36,11 @@ px4_add_module(
 	MAIN position_estimator_inav
 	STACK_MAIN 1200
 	STACK_MAX 4000
-	COMPILE_FLAGS -Os
+	COMPILE_FLAGS
 	SRCS
 		position_estimator_inav_main.cpp
-		position_estimator_inav_params.cpp
 		inertial_filter.cpp
 	DEPENDS
 		platforms__common
 	)
-# vim: set noet ft=cmake fenc=utf-8 ff=unix : 
+# vim: set noet ft=cmake fenc=utf-8 ff=unix :

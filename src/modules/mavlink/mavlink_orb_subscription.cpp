@@ -39,20 +39,23 @@
  * @author Lorenz Meier <lorenz@px4.io>
  */
 
+#include "mavlink_orb_subscription.h"
+
 #include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
-#include <uORB/uORB.h>
 #include <stdio.h>
 
-#include "mavlink_orb_subscription.h"
+#include <px4_defines.h>
+#include <uORB/uORB.h>
 
 MavlinkOrbSubscription::MavlinkOrbSubscription(const orb_id_t topic, int instance) :
 	next(nullptr),
 	_topic(topic),
-	_instance(instance),
 	_fd(-1),
+	_instance(instance),
 	_published(false),
+	_subscribe_from_beginning(false),
 	_last_pub_check(0)
 {
 }
@@ -157,15 +160,6 @@ MavlinkOrbSubscription::is_published()
 		return true;
 	}
 
-	// This is a workaround for this issue:
-	// https://github.com/PX4/Firmware/issues/5438
-#if defined(__PX4_LINUX) || defined(__PX4_QURT)
-
-	if (_fd < 0) {
-		_fd = orb_subscribe_multi(_topic, _instance);
-	}
-
-#else
 	// Telemetry can sustain an initial published check at 10 Hz
 	hrt_abstime now = hrt_absolute_time();
 
@@ -176,15 +170,17 @@ MavlinkOrbSubscription::is_published()
 	// We are checking now
 	_last_pub_check = now;
 
-	// If it does not exist its not published
-	if (orb_exists(_topic, _instance)) {
+	// We don't want to subscribe to anything that does not exist
+	// in order to save memory and file descriptors.
+	// However, for some topics like vehicle_command_ack, we want to subscribe
+	// from the beginning in order not to miss the first publish respective advertise.
+	if (!_subscribe_from_beginning && orb_exists(_topic, _instance)) {
 		return false;
-
-	} else if (_fd < 0) {
-		_fd = orb_subscribe_multi(_topic, _instance);
 	}
 
-#endif
+	if (_fd < 0) {
+		_fd = orb_subscribe_multi(_topic, _instance);
+	}
 
 	bool updated;
 	orb_check(_fd, &updated);
@@ -193,5 +189,20 @@ MavlinkOrbSubscription::is_published()
 		_published = true;
 	}
 
+	// topic may have been last published before we subscribed
+	uint64_t time_topic = 0;
+
+	if (!_published && orb_stat(_fd, &time_topic) == PX4_OK) {
+		if (time_topic != 0) {
+			_published = true;
+		}
+	}
+
 	return _published;
+}
+
+void
+MavlinkOrbSubscription::subscribe_from_beginning(bool from_beginning)
+{
+	_subscribe_from_beginning = from_beginning;
 }

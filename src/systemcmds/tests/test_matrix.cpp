@@ -4,13 +4,14 @@
 #include <matrix/math.hpp>
 #include <matrix/filter.hpp>
 #include <matrix/integration.hpp>
+#include <matrix/Quaternion.hpp>
 
 using namespace matrix;
 
 class MatrixTest : public UnitTest
 {
 public:
-	virtual bool run_tests(void);
+	virtual bool run_tests();
 
 private:
 	bool attitudeTests();
@@ -29,9 +30,10 @@ private:
 	bool vector2Tests();
 	bool vector3Tests();
 	bool vectorAssignmentTests();
+	bool dcmRenormTests();
 };
 
-bool MatrixTest::run_tests(void)
+bool MatrixTest::run_tests()
 {
 	ut_run_test(attitudeTests);
 	ut_run_test(filterTests);
@@ -49,6 +51,7 @@ bool MatrixTest::run_tests(void)
 	ut_run_test(vector2Tests);
 	ut_run_test(vector3Tests);
 	ut_run_test(vectorAssignmentTests);
+	ut_run_test(dcmRenormTests);
 
 	return (_tests_failed == 0);
 }
@@ -56,14 +59,16 @@ bool MatrixTest::run_tests(void)
 
 ut_declare_test_c(test_matrix, MatrixTest)
 
+using matrix::Dcmf;
+using matrix::Quatf;
+using matrix::Eulerf;
+using matrix::Vector3f;
 
-template class matrix::Quaternion<float>;
-template class matrix::Euler<float>;
-template class matrix::Dcm<float>;
+using std::fabs;
 
-bool MatrixTest::attitudeTests(void)
+bool MatrixTest::attitudeTests()
 {
-	double eps = 1e-6;
+	float eps = 1e-6;
 
 	// check data
 	Eulerf euler_check(0.1f, 0.2f, 0.3f);
@@ -204,12 +209,12 @@ bool MatrixTest::attitudeTests(void)
 	Quatf q_from_m(m4);
 	ut_test(isEqual(q_from_m, m4));
 
-	// quaternion derivate
-	Vector<float, 4> q_dot = q.derivative(Vector3f(1, 2, 3));
+	// quaternion derivative
+	Vector<float, 4> q_dot = q.derivative1(Vector3f(1, 2, 3));
+	(void)q_dot;
 
 	// quaternion product
-	Quatf q_prod_check(
-		0.93394439f, 0.0674002f, 0.20851f, 0.28236266f);
+	Quatf q_prod_check(0.93394439f, 0.0674002f, 0.20851f, 0.28236266f);
 	ut_test(isEqual(q_prod_check, q_check * q_check));
 	q_check *= q_check;
 	ut_test(isEqual(q_prod_check, q_check));
@@ -290,7 +295,7 @@ bool MatrixTest::attitudeTests(void)
 	return true;
 }
 
-bool MatrixTest::filterTests(void)
+bool MatrixTest::filterTests()
 {
 	const size_t n_x = 6;
 	const size_t n_y = 5;
@@ -313,11 +318,11 @@ bool MatrixTest::filterTests(void)
 	return true;
 }
 
-bool MatrixTest::helperTests(void)
+bool MatrixTest::helperTests()
 {
-	ut_test(fabs(wrap_pi(4.0) - (4.0 - 2 * M_PI)) < 1e-5);
-	ut_test(fabs(wrap_pi(-4.0) - (-4.0 + 2 * M_PI)) < 1e-5);
-	ut_test(fabs(wrap_pi(3.0) - (3.0)) < 1e-3);
+	ut_test(::fabs(wrap_pi(4.0) - (4.0 - 2 * M_PI)) < 1e-5);
+	ut_test(::fabs(wrap_pi(-4.0) - (-4.0 + 2 * M_PI)) < 1e-5);
+	ut_test(::fabs(wrap_pi(3.0) - (3.0)) < 1e-3);
 	wrap_pi(NAN);
 
 	Vector3f a(1, 2, 3);
@@ -336,7 +341,7 @@ Vector<float, 6> f(float t, const Matrix<float, 6, 1> &y, const Matrix<float, 3,
 	return v * ones<float, 6, 1>();
 }
 
-bool MatrixTest::integrationTests(void)
+bool MatrixTest::integrationTests()
 {
 	Vector<float, 6> y = ones<float, 6, 1>();
 	Vector<float, 3> u = ones<float, 3, 1>();
@@ -352,7 +357,7 @@ bool MatrixTest::integrationTests(void)
 
 template class matrix::SquareMatrix<float, 3>;
 
-bool MatrixTest::inverseTests(void)
+bool MatrixTest::inverseTests()
 {
 	float data[9] = {0, 2, 3,
 			 4, 5, 6,
@@ -378,7 +383,7 @@ bool MatrixTest::inverseTests(void)
 	return true;
 }
 
-bool MatrixTest::matrixAssignmentTests(void)
+bool MatrixTest::matrixAssignmentTests()
 {
 	Matrix3f m;
 	m.setZero();
@@ -459,7 +464,7 @@ bool MatrixTest::matrixAssignmentTests(void)
 	return true;
 }
 
-bool MatrixTest::matrixMultTests(void)
+bool MatrixTest::matrixMultTests()
 {
 	float data[9] = {1, 0, 0, 0, 1, 0, 1, 0, 1};
 	Matrix3f A(data);
@@ -483,7 +488,7 @@ bool MatrixTest::matrixMultTests(void)
 	return true;
 }
 
-bool MatrixTest::matrixScalarMultTests(void)
+bool MatrixTest::matrixScalarMultTests()
 {
 	float data[9] = {1, 2, 3, 4, 5, 6, 7, 8, 9};
 	Matrix3f A(data);
@@ -498,7 +503,7 @@ bool MatrixTest::matrixScalarMultTests(void)
 
 template class matrix::Matrix<float, 3, 3>;
 
-bool MatrixTest::setIdentityTests(void)
+bool MatrixTest::setIdentityTests()
 {
 	Matrix3f A;
 	A.setIdentity();
@@ -517,7 +522,7 @@ bool MatrixTest::setIdentityTests(void)
 	return true;
 }
 
-bool MatrixTest::sliceTests(void)
+bool MatrixTest::sliceTests()
 {
 	float data[9] = {0, 2, 3,
 			 4, 5, 6,
@@ -552,7 +557,7 @@ bool MatrixTest::sliceTests(void)
 }
 
 
-bool MatrixTest::squareMatrixTests(void)
+bool MatrixTest::squareMatrixTests()
 {
 	float data[9] = {1, 2, 3,
 			 4, 5, 6,
@@ -579,7 +584,7 @@ bool MatrixTest::squareMatrixTests(void)
 	return true;
 }
 
-bool MatrixTest::transposeTests(void)
+bool MatrixTest::transposeTests()
 {
 	float data[6] = {1, 2, 3, 4, 5, 6};
 	Matrix<float, 2, 3> A(data);
@@ -591,7 +596,7 @@ bool MatrixTest::transposeTests(void)
 	return true;
 }
 
-bool MatrixTest::vectorTests(void)
+bool MatrixTest::vectorTests()
 {
 	float data1[] = {1, 2, 3, 4, 5};
 	float data2[] = {6, 7, 8, 9, 10};
@@ -609,7 +614,7 @@ bool MatrixTest::vectorTests(void)
 	return true;
 }
 
-bool MatrixTest::vector2Tests(void)
+bool MatrixTest::vector2Tests()
 {
 	Vector2f a(1, 0);
 	Vector2f b(0, 1);
@@ -619,7 +624,9 @@ bool MatrixTest::vector2Tests(void)
 	ut_test(fabs(c(0) - 0) < 1e-5);
 	ut_test(fabs(c(1) - 0) < 1e-5);
 
-	Matrix<float, 2, 1> d(a);
+	static Matrix<float, 2, 1> d(a);
+	// the static keywork is a workaround for an internal bug of GCC
+	// "internal compiler error: in trunc_int_for_mode, at explow.c:55"
 	ut_test(fabs(d(0, 0) - 1) < 1e-5);
 	ut_test(fabs(d(1, 0) - 0) < 1e-5);
 
@@ -634,7 +641,7 @@ bool MatrixTest::vector2Tests(void)
 	return true;
 }
 
-bool MatrixTest::vector3Tests(void)
+bool MatrixTest::vector3Tests()
 {
 	Vector3f a(1, 0, 0);
 	Vector3f b(0, 1, 0);
@@ -651,7 +658,7 @@ bool MatrixTest::vector3Tests(void)
 	return true;
 }
 
-bool MatrixTest::vectorAssignmentTests(void)
+bool MatrixTest::vectorAssignmentTests()
 {
 	Vector3f v;
 	v(0) = 1;
@@ -674,6 +681,49 @@ bool MatrixTest::vectorAssignmentTests(void)
 	ut_test(fabsf(m(0, 0) - 1) < eps);
 	ut_test(fabsf(m(1, 1) - 2) < eps);
 	ut_test(fabsf(m(2, 2) - 3) < eps);
+
+	return true;
+}
+
+bool MatrixTest::dcmRenormTests()
+{
+	bool verbose = true;
+
+	Dcm<float> A = eye<float, 3>();
+	Euler<float> euler(0.1f, 0.2f, 0.3f);
+	Dcm<float> R(euler);
+
+	// demonstrate need for renormalization
+	for (int i = 0; i < 1000; i++) {
+		A = R * A;
+	}
+
+	float err = 0.0f;
+
+	if (verbose) {
+		for (int row = 0; row < 3; row++) {
+			matrix::Vector3f rvec(A._data[row]);
+			err += fabsf(1.0f - rvec.length());
+		}
+
+		printf("error: %e\n", (double)err);
+	}
+
+	A.renormalize();
+
+	err = 0.0f;
+
+	for (int row = 0; row < 3; row++) {
+		matrix::Vector3f rvec(A._data[row]);
+		err += fabsf(1.0f - rvec.length());
+	}
+
+	if (verbose) {
+		printf("renorm error: %e\n", (double)err);
+	}
+
+	static const float eps = 1e-6f;
+	ut_test(err < eps);
 
 	return true;
 }

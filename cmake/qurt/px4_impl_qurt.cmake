@@ -67,7 +67,7 @@ list(APPEND CMAKE_MODULE_PATH ${PX4_SOURCE_DIR}/cmake/qurt)
 #		MODULE_LIST	: list of modules
 #
 #	Output:
-#		OUT	: generated builtin_commands.c src
+#		OUT	: stem of generated apps.cpp/apps.h ("apps").
 #
 #	Example:
 #		px4_qurt_generate_builtin_commands(
@@ -91,11 +91,12 @@ function(px4_qurt_generate_builtin_commands)
 			set(builtin_apps_string
 				"${builtin_apps_string}\tapps[\"${MAIN}\"] = ${MAIN}_main;\n")
 			set(builtin_apps_decl_string
-				"${builtin_apps_decl_string}extern int ${MAIN}_main(int argc, char *argv[]);\n")
+				"${builtin_apps_decl_string}int ${MAIN}_main(int argc, char *argv[]);\n")
 			math(EXPR command_count "${command_count}+1")
 		endif()
 	endforeach()
-	configure_file(${PX4_SOURCE_DIR}/cmake/qurt/apps.h_in ${OUT})
+	configure_file(${PX4_SOURCE_DIR}/src/platforms/apps.cpp.in ${OUT}.cpp)
+	configure_file(${PX4_SOURCE_DIR}/src/platforms/apps.h.in ${OUT}.h)
 endfunction()
 
 #=============================================================================
@@ -126,6 +127,10 @@ endfunction()
 #		LINK_DIRS				: link directories
 #		DEFINITIONS				: definitions
 #
+#	Note that EXE_LINKER_FLAGS is not suitable for adding libraries because
+#	these flags are added before any of the object files and static libraries.
+#	Add libraries in src/firmware/qurt/CMakeLists.txt.
+#
 #	Example:
 #		px4_os_add_flags(
 #			C_FLAGS CMAKE_C_FLAGS
@@ -155,31 +160,33 @@ function(px4_os_add_flags)
 		LINK_DIRS ${LINK_DIRS}
 		DEFINITIONS ${DEFINITIONS})
 
-        set(DSPAL_ROOT src/lib/DriverFramework/dspal)
-        set(added_include_dirs
-                ${DSPAL_ROOT}/include 
-                ${DSPAL_ROOT}/sys 
-                ${DSPAL_ROOT}/sys/sys 
-                ${DSPAL_ROOT}/mpu_spi/inc
-                ${DSPAL_ROOT}/uart_esc/inc
-                src/platforms/qurt/include
-                src/platforms/posix/include
-                )
+	set(DSPAL_ROOT src/lib/DriverFramework/dspal)
+	set(added_include_dirs
+		${DSPAL_ROOT}/include
+		${DSPAL_ROOT}/sys
+		${DSPAL_ROOT}/sys/sys
+		${DSPAL_ROOT}/mpu_spi/inc
+		${DSPAL_ROOT}/uart_esc/inc
+		src/platforms/qurt/include
+		src/platforms/posix/include
+		)
 
-        set(added_definitions
-                -D__PX4_QURT 
+	set(added_definitions
+		-D__PX4_QURT
+		-D__DF_QURT # For DriverFramework
 		-D__PX4_POSIX
 		-D__QAIC_SKEL_EXPORT=__EXPORT
-		-include ${PX4_INCLUDE_DIR}visibility.h
-                )
+		)
 
 	# Add the toolchain specific flags
-        set(added_cflags -O0)
-        set(added_cxx_flags -O0)
+	set(added_cflags)
+	set(added_cxx_flags)
 
 	# Clear -rdynamic flag which fails for hexagon
 	set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS "")
 	set(CMAKE_SHARED_LIBRARY_LINK_CXX_FLAGS "")
+
+	set(DF_TARGET "qurt" PARENT_SCOPE)
 
 	# output
 	foreach(var ${inout_vars})

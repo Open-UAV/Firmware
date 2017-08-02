@@ -3,6 +3,14 @@
 # @name Passthrough mode for Snapdragon
 #
 # @type custom
+# @class Tool
+#
+# @board px4fmu-v1 exclude
+# @board px4fmu-v2 exclude
+# @board px4fmu-v3 exclude
+# @board px4fmu-v4pro exclude
+# @board px4fmu-v5 exclude
+# @board aerofc-v1 exclude
 #
 # @maintainer Julian Oes <julian@oes.ch>
 #

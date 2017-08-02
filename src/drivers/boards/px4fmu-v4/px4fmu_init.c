@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (C) 2012 PX4 Development Team. All rights reserved.
+ *   Copyright (c) 2012-2016 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -35,10 +35,10 @@
  * @file px4fmu_init.c
  *
  * PX4FMU-specific early startup code.  This file implements the
- * nsh_archinitialize() function that is called early by nsh during startup.
+ * board_app_initialize() function that is called early by nsh during startup.
  *
  * Code here is run before the rcS script is invoked; it should start required
- * subsystems and perform board-specific initialisation.
+ * subsystems and perform board-specific initialization.
  */
 
 /****************************************************************************
@@ -46,19 +46,22 @@
  ****************************************************************************/
 
 #include <px4_config.h>
+#include <px4_tasks.h>
 
 #include <stdbool.h>
 #include <stdio.h>
+#include <string.h>
 #include <debug.h>
 #include <errno.h>
 
 #include <nuttx/arch.h>
-#include <nuttx/spi.h>
-#include <nuttx/i2c.h>
+#include <nuttx/board.h>
+#include <nuttx/spi/spi.h>
+#include <nuttx/i2c/i2c_master.h>
 #include <nuttx/sdio.h>
 #include <nuttx/mmcsd.h>
 #include <nuttx/analog/adc.h>
-#include <nuttx/gran.h>
+#include <nuttx/mm/gran.h>
 
 #include <stm32.h>
 #include "board_config.h"
@@ -67,11 +70,17 @@
 #include <arch/board/board.h>
 
 #include <drivers/drv_hrt.h>
-#include <drivers/drv_led.h>
+#include <drivers/drv_board_led.h>
 
+#include <systemlib/px4_macros.h>
 #include <systemlib/cpuload.h>
 #include <systemlib/perf_counter.h>
 #include <systemlib/err.h>
+
+#include <systemlib/hardfault_log.h>
+
+#include <systemlib/systemlib.h>
+#include <systemlib/param/param.h>
 
 /****************************************************************************
  * Pre-Processor Definitions
@@ -83,13 +92,13 @@
 
 #ifdef CONFIG_CPP_HAVE_VARARGS
 #  ifdef CONFIG_DEBUG
-#    define message(...) lowsyslog(__VA_ARGS__)
+#    define message(...) syslog(__VA_ARGS__)
 #  else
 #    define message(...) printf(__VA_ARGS__)
 #  endif
 #else
 #  ifdef CONFIG_DEBUG
-#    define message lowsyslog
+#    define message syslog
 #  else
 #    define message printf
 #  endif
@@ -123,13 +132,13 @@ __END_DECLS
 __EXPORT void board_peripheral_reset(int ms)
 {
 	/* set the peripheral rails off */
-	px4_arch_configgpio(GPIO_PERIPH_3V3_EN);
+	stm32_configgpio(GPIO_PERIPH_3V3_EN);
 
-	px4_arch_gpiowrite(GPIO_PERIPH_3V3_EN, 0);
+	stm32_gpiowrite(GPIO_PERIPH_3V3_EN, 0);
 
-	bool last = px4_arch_gpioread(GPIO_SPEKTRUM_PWR_EN);
+	bool last = stm32_gpioread(GPIO_SPEKTRUM_PWR_EN);
 	/* Keep Spektum on to discharge rail*/
-	px4_arch_gpiowrite(GPIO_SPEKTRUM_PWR_EN, 1);
+	stm32_gpiowrite(GPIO_SPEKTRUM_PWR_EN, 1);
 
 	/* wait for the peripheral rail to reach GND */
 	usleep(ms * 1000);
@@ -138,9 +147,40 @@ __EXPORT void board_peripheral_reset(int ms)
 	/* re-enable power */
 
 	/* switch the peripheral rail back on */
-	px4_arch_gpiowrite(GPIO_SPEKTRUM_PWR_EN, last);
-	px4_arch_gpiowrite(GPIO_PERIPH_3V3_EN, 1);
+	stm32_gpiowrite(GPIO_SPEKTRUM_PWR_EN, last);
+	stm32_gpiowrite(GPIO_PERIPH_3V3_EN, 1);
 
+}
+
+/************************************************************************************
+ * Name: board_on_reset
+ *
+ * Description:
+ * Optionally provided function called on entry to board_system_reset
+ * It should perform any house keeping prior to the rest.
+ *
+ * status - 1 if resetting to boot loader
+ *          0 if just resetting
+ *
+ ************************************************************************************/
+__EXPORT void board_on_reset(int status)
+{
+	/* configure the GPIO pins to outputs and keep them low */
+
+	stm32_configgpio(GPIO_GPIO0_OUTPUT);
+	stm32_configgpio(GPIO_GPIO1_OUTPUT);
+	stm32_configgpio(GPIO_GPIO2_OUTPUT);
+	stm32_configgpio(GPIO_GPIO3_OUTPUT);
+	stm32_configgpio(GPIO_GPIO4_OUTPUT);
+	stm32_configgpio(GPIO_GPIO5_OUTPUT);
+
+	/* On resets invoked from system (not boot) insure we establish a low
+	 * output state (discharge the pins) on PWM pins before they become inputs.
+	 */
+
+	if (status >= 0) {
+		up_mdelay(400);
+	}
 }
 
 /************************************************************************************
@@ -156,18 +196,71 @@ __EXPORT void board_peripheral_reset(int ms)
 __EXPORT void
 stm32_boardinitialize(void)
 {
-	/* configure SPI interfaces */
-	stm32_spiinitialize();
+	/* Reset all PWM to Low outputs */
+
+	board_on_reset(-1);
 
 	/* configure LEDs */
-	up_ledinit();
+	board_autoled_initialize();
+
+
+	/* configure ADC pins */
+	stm32_configgpio(GPIO_ADC1_IN2);	/* BATT_VOLTAGE_SENS */
+	stm32_configgpio(GPIO_ADC1_IN3);	/* BATT_CURRENT_SENS */
+	stm32_configgpio(GPIO_ADC1_IN4);	/* VDD_5V_SENS */
+	stm32_configgpio(GPIO_ADC1_IN11);	/* RSSI analog in */
+
+	/* configure power supply control/sense pins */
+	stm32_configgpio(GPIO_PERIPH_3V3_EN);
+	stm32_configgpio(GPIO_VDD_BRICK_VALID);
+	stm32_configgpio(GPIO_VDD_USB_VALID);
+
+	/* Start with Sensor voltage off We will enable it
+	 * in board_app_initialize
+	 */
+	stm32_configgpio(GPIO_VDD_3V3_SENSORS_EN);
+
+	stm32_configgpio(GPIO_SBUS_INV);
+	stm32_configgpio(GPIO_SPEKTRUM_PWR_EN);
+
+	stm32_configgpio(GPIO_8266_GPIO0);
+	stm32_configgpio(GPIO_8266_PD);
+	stm32_configgpio(GPIO_8266_RST);
+
+	/* Safety - led don in led driver */
+
+	stm32_configgpio(GPIO_BTN_SAFETY);
+	stm32_configgpio(GPIO_RSSI_IN);
+	stm32_configgpio(GPIO_PPM_IN);
+
+	/* configure SPI all interfaces GPIO */
+
+	stm32_spiinitialize(PX4_SPI_BUS_RAMTRON | PX4_SPI_BUS_SENSORS);
+
 }
 
 /****************************************************************************
- * Name: nsh_archinitialize
+ * Name: board_app_initialize
  *
  * Description:
- *   Perform architecture specific initialization
+ *   Perform application specific initialization.  This function is never
+ *   called directly from application code, but only indirectly via the
+ *   (non-standard) boardctl() interface using the command BOARDIOC_INIT.
+ *
+ * Input Parameters:
+ *   arg - The boardctl() argument is passed to the board_app_initialize()
+ *         implementation without modification.  The argument has no
+ *         meaning to NuttX; the meaning of the argument is a contract
+ *         between the board-specific initalization logic and the the
+ *         matching application logic.  The value cold be such things as a
+ *         mode enumeration value, a set of DIP switch switch settings, a
+ *         pointer to configuration data read from a file or serial FLASH,
+ *         or whatever you would like to do with it.  Every implementation
+ *         should accept zero/NULL as a default configuration.
+ *
+ * Returned Value:
+ *   Zero (OK) is returned on success; a negated errno value is returned on
+ *   any failure to indicate the nature of the failure.
  *
  ****************************************************************************/
 
@@ -175,43 +268,27 @@ static struct spi_dev_s *spi1;
 static struct spi_dev_s *spi2;
 static struct sdio_dev_s *sdio;
 
-#include <math.h>
-
-__EXPORT int nsh_archinitialize(void)
+__EXPORT int board_app_initialize(uintptr_t arg)
 {
 
-	/* configure ADC pins */
-	px4_arch_configgpio(GPIO_ADC1_IN2);	/* BATT_VOLTAGE_SENS */
-	px4_arch_configgpio(GPIO_ADC1_IN3);	/* BATT_CURRENT_SENS */
-	px4_arch_configgpio(GPIO_ADC1_IN4);	/* VDD_5V_SENS */
-	px4_arch_configgpio(GPIO_ADC1_IN11);	/* RSSI analog in */
+#if defined(CONFIG_HAVE_CXX) && defined(CONFIG_HAVE_CXXINITIALIZE)
 
-	/* configure power supply control/sense pins */
-	px4_arch_configgpio(GPIO_PERIPH_3V3_EN);
-	px4_arch_configgpio(GPIO_VDD_BRICK_VALID);
+	/* run C++ ctors before we go any further */
 
-	px4_arch_configgpio(GPIO_SBUS_INV);
-	px4_arch_configgpio(GPIO_8266_GPIO0);
-	px4_arch_configgpio(GPIO_SPEKTRUM_PWR_EN);
-	px4_arch_configgpio(GPIO_8266_PD);
-	px4_arch_configgpio(GPIO_8266_RST);
-	px4_arch_configgpio(GPIO_BTN_SAFETY);
+	up_cxxinitialize();
 
-#ifdef GPIO_RC_OUT
-	px4_arch_configgpio(GPIO_RC_OUT);      /* Serial RC output pin */
-	px4_arch_gpiowrite(GPIO_RC_OUT, 1);    /* set it high to pull RC input up */
+#	if defined(CONFIG_EXAMPLES_NSH_CXXINITIALIZE)
+#  		error CONFIG_EXAMPLES_NSH_CXXINITIALIZE Must not be defined! Use CONFIG_HAVE_CXX and CONFIG_HAVE_CXXINITIALIZE.
+#	endif
+
+#else
+#  error platform is dependent on c++ both CONFIG_HAVE_CXX and CONFIG_HAVE_CXXINITIALIZE must be defined.
 #endif
-
-	/* configure the GPIO pins to outputs and keep them low */
-	px4_arch_configgpio(GPIO_GPIO0_OUTPUT);
-	px4_arch_configgpio(GPIO_GPIO1_OUTPUT);
-	px4_arch_configgpio(GPIO_GPIO2_OUTPUT);
-	px4_arch_configgpio(GPIO_GPIO3_OUTPUT);
-	px4_arch_configgpio(GPIO_GPIO4_OUTPUT);
-	px4_arch_configgpio(GPIO_GPIO5_OUTPUT);
 
 	/* configure the high-resolution time/callout interface */
 	hrt_init();
+
+	param_init();
 
 	/* configure the DMA allocator */
 
@@ -241,21 +318,158 @@ __EXPORT int nsh_archinitialize(void)
 		       (hrt_callout)stm32_serial_dma_poll,
 		       NULL);
 
+#if defined(CONFIG_STM32_BBSRAM)
+
+	/* NB. the use of the console requires the hrt running
+	 * to poll the DMA
+	 */
+
+	/* Using Battery Backed Up SRAM */
+
+	int filesizes[CONFIG_STM32_BBSRAM_FILES + 1] = BSRAM_FILE_SIZES;
+
+	stm32_bbsraminitialize(BBSRAM_PATH, filesizes);
+
+#if defined(CONFIG_STM32_SAVE_CRASHDUMP)
+
+	/* Panic Logging in Battery Backed Up Files */
+
+	/*
+	 * In an ideal world, if a fault happens in flight the
+	 * system save it to BBSRAM will then reboot. Upon
+	 * rebooting, the system will log the fault to disk, recover
+	 * the flight state and continue to fly.  But if there is
+	 * a fault on the bench or in the air that prohibit the recovery
+	 * or committing the log to disk, the things are too broken to
+	 * fly. So the question is:
+	 *
+	 * Did we have a hard fault and not make it far enough
+	 * through the boot sequence to commit the fault data to
+	 * the SD card?
+	 */
+
+	/* Do we have an uncommitted hard fault in BBSRAM?
+	 *  - this will be reset after a successful commit to SD
+	 */
+	int hadCrash = hardfault_check_status("boot");
+
+	if (hadCrash == OK) {
+
+		message("[boot] There is a hard fault logged. Hold down the SPACE BAR," \
+			" while booting to halt the system!\n");
+
+		/* Yes. So add one to the boot count - this will be reset after a successful
+		 * commit to SD
+		 */
+
+		int reboots = hardfault_increment_reboot("boot", false);
+
+		/* Also end the misery for a user that holds for a key down on the console */
+
+		int bytesWaiting;
+		ioctl(fileno(stdin), FIONREAD, (unsigned long)((uintptr_t) &bytesWaiting));
+
+		if (reboots > 2 || bytesWaiting != 0) {
+
+			/* Since we can not commit the fault dump to disk. Display it
+			 * to the console.
+			 */
+
+			hardfault_write("boot", fileno(stdout), HARDFAULT_DISPLAY_FORMAT, false);
+
+			message("[boot] There were %d reboots with Hard fault that were not committed to disk - System halted %s\n",
+				reboots,
+				(bytesWaiting == 0 ? "" : " Due to Key Press\n"));
+
+
+			/* For those of you with a debugger set a break point on up_assert and
+			 * then set dbgContinue = 1 and go.
+			 */
+
+			/* Clear any key press that got us here */
+
+			static volatile bool dbgContinue = false;
+			int c = '>';
+
+			while (!dbgContinue) {
+
+				switch (c) {
+
+				case EOF:
+
+
+				case '\n':
+				case '\r':
+				case ' ':
+					continue;
+
+				default:
+
+					putchar(c);
+					putchar('\n');
+
+					switch (c) {
+
+					case 'D':
+					case 'd':
+						hardfault_write("boot", fileno(stdout), HARDFAULT_DISPLAY_FORMAT, false);
+						break;
+
+					case 'C':
+					case 'c':
+						hardfault_rearm("boot");
+						hardfault_increment_reboot("boot", true);
+						break;
+
+					case 'B':
+					case 'b':
+						dbgContinue = true;
+						break;
+
+					default:
+						break;
+					} // Inner Switch
+
+					message("\nEnter B - Continue booting\n" \
+						"Enter C - Clear the fault log\n" \
+						"Enter D - Dump fault log\n\n?>");
+					fflush(stdout);
+
+					if (!dbgContinue) {
+						c = getchar();
+					}
+
+					break;
+
+				} // outer switch
+			} // for
+
+		} // inner if
+	} // outer if
+
+#endif // CONFIG_STM32_SAVE_CRASHDUMP
+#endif // CONFIG_STM32_BBSRAM
+
 	/* initial LED state */
 	drv_led_start();
 	led_off(LED_RED);
 	led_off(LED_GREEN);
 	led_off(LED_BLUE);
 
+	/* Power up there sensors */
+
+	stm32_gpiowrite(GPIO_VDD_3V3_SENSORS_EN, 1);
+
 	/* Configure SPI-based devices */
 
-	spi1 = px4_spibus_initialize(1);
+	spi1 = stm32_spibus_initialize(1);
 
 	if (!spi1) {
 		message("[boot] FAILED to initialize SPI port 1\n");
-		up_ledon(LED_RED);
+		board_autoled_on(LED_RED);
 		return -ENODEV;
 	}
+
 
 	/* Default SPI1 to 1MHz and de-assert the known chip selects. */
 	SPI_SETFREQUENCY(spi1, 10000000);
@@ -268,11 +482,11 @@ __EXPORT int nsh_archinitialize(void)
 
 	/* Get the SPI port for the FRAM */
 
-	spi2 = px4_spibus_initialize(2);
+	spi2 = stm32_spibus_initialize(2);
 
 	if (!spi2) {
 		message("[boot] FAILED to initialize SPI port 2\n");
-		up_ledon(LED_RED);
+		board_autoled_on(LED_RED);
 		return -ENODEV;
 	}
 

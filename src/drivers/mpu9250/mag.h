@@ -33,6 +33,9 @@
 
 #pragma once
 
+#include "drivers/device/ringbuffer.h"	// ringbuffer::RingBuffer
+#include "drivers/drv_mag.h"		// mag_calibration_s
+#include "systemlib/perf_counter.h"	// perf_counter_t
 
 /* in 16-bit sampling mode the mag resolution is 1.5 milli Gauss per bit */
 
@@ -101,9 +104,9 @@ public:
 	void passthrough_write(uint8_t reg, uint8_t val);
 	void read_block(uint8_t reg, uint8_t *val, uint8_t count);
 
-	void ak8963_reset(void);
-	bool ak8963_setup(void);
-	bool ak8963_check_id(void);
+	int ak8963_reset(void);
+	int ak8963_setup(void);
+	bool ak8963_check_id(uint8_t &id);
 	bool ak8963_read_adjustments(void);
 
 protected:

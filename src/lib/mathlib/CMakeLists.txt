@@ -33,11 +33,11 @@
 px4_add_module(
 	MODULE lib__mathlib
 	COMPILE_FLAGS
-		-Os
 	SRCS
 		math/test/test.cpp
 		math/Limits.cpp
+		math/matrix_alg.cpp
 	DEPENDS
 		platforms__common
 	)
-# vim: set noet ft=cmake fenc=utf-8 ff=unix : 
+# vim: set noet ft=cmake fenc=utf-8 ff=unix :

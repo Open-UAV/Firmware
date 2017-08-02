@@ -31,7 +31,7 @@
  *
  ****************************************************************************/
 
-/*
+/**
  * @file FixedwingLandDetector.cpp
  *
  * @author Johan Jansen <jnsn.johan@gmail.com>
@@ -50,7 +50,7 @@
 namespace land_detector
 {
 
-FixedwingLandDetector::FixedwingLandDetector() : LandDetector(),
+FixedwingLandDetector::FixedwingLandDetector() :
 	_paramHandle(),
 	_params(),
 	_controlStateSub(-1),
@@ -92,8 +92,29 @@ void FixedwingLandDetector::_update_params()
 	param_get(_paramHandle.maxIntVelocity, &_params.maxIntVelocity);
 }
 
+float FixedwingLandDetector::_get_max_altitude()
+{
+	// TODO
+	// This means no altitude limit as the limit
+	// is always current position plus 1000 meters
+	return -_controlState.z_pos + 1000;
+}
+
 bool FixedwingLandDetector::_get_freefall_state()
 {
+	// TODO
+	return false;
+}
+bool FixedwingLandDetector::_get_ground_contact_state()
+{
+
+	// TODO
+	return false;
+}
+
+bool FixedwingLandDetector::_get_maybe_landed_state()
+{
+
 	// TODO
 	return false;
 }
@@ -128,16 +149,10 @@ bool FixedwingLandDetector::_get_landed_state()
 		_accel_horz_lp = _accel_horz_lp * 0.8f + _controlState.horz_acc_mag * 0.18f;
 
 		// crude land detector for fixedwing
-		if (_velocity_xy_filtered < _params.maxVelocity
-		    && _velocity_z_filtered < _params.maxClimbRate
-		    && _airspeed_filtered < _params.maxAirSpeed
-		    && _accel_horz_lp < _params.maxIntVelocity) {
-
-			landDetected = true;
-
-		} else {
-			landDetected = false;
-		}
+		landDetected = _velocity_xy_filtered < _params.maxVelocity
+			       && _velocity_z_filtered < _params.maxClimbRate
+			       && _airspeed_filtered < _params.maxAirSpeed
+			       && _accel_horz_lp < _params.maxIntVelocity;
 
 	} else {
 		// Control state topic has timed out and we need to assume we're landed.

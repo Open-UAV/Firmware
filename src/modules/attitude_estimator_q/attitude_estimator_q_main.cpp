@@ -41,6 +41,7 @@
 
 #include <px4_config.h>
 #include <px4_posix.h>
+#include <px4_tasks.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -57,7 +58,6 @@
 #include <uORB/topics/control_state.h>
 #include <uORB/topics/vehicle_control_mode.h>
 #include <uORB/topics/vehicle_global_position.h>
-#include <uORB/topics/vision_position_estimate.h>
 #include <uORB/topics/att_pos_mocap.h>
 #include <uORB/topics/airspeed.h>
 #include <uORB/topics/parameter_update.h>
@@ -68,7 +68,6 @@
 #include <mathlib/math/filter/LowPassFilter2p.hpp>
 #include <lib/geo/geo.h>
 
-#include <systemlib/systemlib.h>
 #include <systemlib/param/param.h>
 #include <systemlib/perf_counter.h>
 #include <systemlib/err.h>
@@ -157,7 +156,7 @@ private:
 	Vector<3>	_accel;
 	Vector<3>	_mag;
 
-	vision_position_estimate_s _vision = {};
+	vehicle_attitude_s _vision = {};
 	Vector<3>	_vision_hdg;
 
 	att_pos_mocap_s _mocap = {};
@@ -188,9 +187,6 @@ private:
 	bool		_ext_hdg_good = false;
 
 	orb_advert_t	_mavlink_log_pub = nullptr;
-
-	perf_counter_t _update_perf;
-	perf_counter_t _loop_perf;
 
 	void update_parameters(bool force);
 
@@ -294,7 +290,7 @@ void AttitudeEstimatorQ::task_main()
 
 	_sensors_sub = orb_subscribe(ORB_ID(sensor_combined));
 
-	_vision_sub = orb_subscribe(ORB_ID(vision_position_estimate));
+	_vision_sub = orb_subscribe(ORB_ID(vehicle_vision_attitude));
 	_mocap_sub = orb_subscribe(ORB_ID(att_pos_mocap));
 
 	_airspeed_sub = orb_subscribe(ORB_ID(airspeed));
@@ -374,7 +370,7 @@ void AttitudeEstimatorQ::task_main()
 		orb_check(_mocap_sub, &mocap_updated);
 
 		if (vision_updated) {
-			orb_copy(ORB_ID(vision_position_estimate), _vision_sub, &_vision);
+			orb_copy(ORB_ID(vehicle_vision_attitude), _vision_sub, &_vision);
 			math::Quaternion q(_vision.q);
 
 			math::Matrix<3, 3> Rvis = q.to_dcm();
@@ -463,37 +459,19 @@ void AttitudeEstimatorQ::task_main()
 			continue;
 		}
 
-		Vector<3> euler = _q.to_euler();
+		{
+			vehicle_attitude_s att = {
+				.timestamp = sensors.timestamp,
+				.rollspeed = _rates(0),
+				.pitchspeed = _rates(1),
+				.yawspeed = _rates(2),
+				.q = {_q(0), _q(1), _q(2), _q(3)}
+			};
 
-		struct vehicle_attitude_s att = {};
-		att.timestamp = sensors.timestamp;
-
-		att.roll = euler(0);
-		att.pitch = euler(1);
-		att.yaw = euler(2);
-
-		att.rollspeed = _rates(0);
-		att.pitchspeed = _rates(1);
-		att.yawspeed = _rates(2);
-
-		for (int i = 0; i < 3; i++) {
-			att.g_comp[i] = _accel(i) - _pos_acc(i);
+			/* the instance count is not used here */
+			int att_inst;
+			orb_publish_auto(ORB_ID(vehicle_attitude), &_att_pub, &att, &att_inst, ORB_PRIO_HIGH);
 		}
-
-		/* copy offsets */
-		memcpy(&att.rate_offsets, _gyro_bias.data, sizeof(att.rate_offsets));
-
-		Matrix<3, 3> R = _q.to_dcm();
-
-		/* copy rotation matrix */
-		memcpy(&att.R[0], R.data, sizeof(att.R));
-		att.R_valid = true;
-		memcpy(&att.q[0], _q.data, sizeof(att.q));
-		att.q_valid = true;
-
-		/* the instance count is not used here */
-		int att_inst;
-		orb_publish_auto(ORB_ID(vehicle_attitude), &_att_pub, &att, &att_inst, ORB_PRIO_HIGH);
 
 		{
 			struct control_state_s ctrl_state = {};
@@ -512,10 +490,13 @@ void AttitudeEstimatorQ::task_main()
 
 			/* attitude rates for control state */
 			ctrl_state.roll_rate = _rates(0);
-
 			ctrl_state.pitch_rate = _rates(1);
-
 			ctrl_state.yaw_rate = _rates(2);
+
+			/* TODO get bias estimates from estimator */
+			ctrl_state.roll_rate_bias = 0.0f;
+			ctrl_state.pitch_rate_bias = 0.0f;
+			ctrl_state.yaw_rate_bias = 0.0f;
 
 			ctrl_state.airspeed_valid = false;
 
@@ -662,6 +643,7 @@ bool AttitudeEstimatorQ::update(float dt)
 
 	// Angular rate of correction
 	Vector<3> corr;
+	float spinRate = _gyro.length();
 
 	if (_ext_hdg_mode > 0 && _ext_hdg_good) {
 		if (_ext_hdg_mode == 1) {
@@ -688,8 +670,15 @@ bool AttitudeEstimatorQ::update(float dt)
 		// Project mag field vector to global frame and extract XY component
 		Vector<3> mag_earth = _q.conjugate(_mag);
 		float mag_err = _wrap_pi(atan2f(mag_earth(1), mag_earth(0)) - _mag_decl);
+		float gainMult = 1.0f;
+		const float fifty_dps = 0.873f;
+
+		if (spinRate > fifty_dps) {
+			gainMult = math::min(spinRate / fifty_dps, 10.0f);
+		}
+
 		// Project magnetometer correction to body frame
-		corr += _q.conjugate_inversed(Vector<3>(0.0f, 0.0f, -mag_err)) * _w_mag;
+		corr += _q.conjugate_inversed(Vector<3>(0.0f, 0.0f, -mag_err)) * _w_mag * gainMult;
 	}
 
 	_q.normalize();
@@ -708,12 +697,13 @@ bool AttitudeEstimatorQ::update(float dt)
 	corr += (k % (_accel - _pos_acc).normalized()) * _w_accel;
 
 	// Gyro bias estimation
-	if (_gyro.length() < 1.0f) {
+	if (spinRate < 0.175f) {
 		_gyro_bias += corr * (_w_gyro_bias * dt);
-	}
 
-	for (int i = 0; i < 3; i++) {
-		_gyro_bias(i) = math::constrain(_gyro_bias(i), -_bias_max, _bias_max);
+		for (int i = 0; i < 3; i++) {
+			_gyro_bias(i) = math::constrain(_gyro_bias(i), -_bias_max, _bias_max);
+		}
+
 	}
 
 	_rates = _gyro + _gyro_bias;

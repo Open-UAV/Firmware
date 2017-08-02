@@ -46,7 +46,6 @@
 
 #include "mavlink_bridge_header.h"
 #include "mavlink_rate_limiter.h"
-#include "mavlink_stream.h"
 
 enum MAVLINK_WPM_STATES {
 	MAVLINK_WPM_STATE_IDLE = 0,
@@ -67,32 +66,20 @@ enum MAVLINK_WPM_CODES {
 #define MAVLINK_MISSION_PROTOCOL_TIMEOUT_DEFAULT 5000000    ///< Protocol communication action timeout in useconds
 #define MAVLINK_MISSION_RETRY_TIMEOUT_DEFAULT 500000        ///< Protocol communication retry timeout in useconds
 
-class MavlinkMissionManager : public MavlinkStream
+class Mavlink;
+
+class MavlinkMissionManager
 {
 public:
+	explicit MavlinkMissionManager(Mavlink *mavlink);
+
 	~MavlinkMissionManager();
 
-	const char *get_name() const
-	{
-		return MavlinkMissionManager::get_name_static();
-	}
-
-	static const char *get_name_static()
-	{
-		return "MISSION_ITEM";
-	}
-
-	uint8_t get_id()
-	{
-		return MAVLINK_MSG_ID_MISSION_ITEM;
-	}
-
-	static MavlinkStream *new_instance(Mavlink *mavlink)
-	{
-		return new MavlinkMissionManager(mavlink);
-	}
-
-	unsigned get_size();
+	/**
+	 * Handle sending of messages. Call this regularly at a fixed frequency.
+	 * @param t current time
+	 */
+	void send(const hrt_abstime t);
 
 	void handle_message(const mavlink_message_t *msg);
 
@@ -105,9 +92,13 @@ private:
 
 	uint64_t		_time_last_recv;
 	uint64_t		_time_last_sent;
+	uint64_t		_time_last_reached;			///< last time when the vehicle reached a waypoint
 
 	uint32_t		_action_timeout;
 	uint32_t		_retry_timeout;
+
+	bool			_int_mode;				///< Use accurate int32 instead of float
+
 	unsigned		_max_count;				///< Maximum number of mission items
 	unsigned		_filesystem_errcount;			///< File system error count
 
@@ -135,6 +126,8 @@ private:
 	MavlinkRateLimiter	_slow_rate_limiter;
 
 	bool _verbose;
+
+	Mavlink *_mavlink;
 
 	static constexpr unsigned int	FILESYSTEM_ERRCOUNT_NOTIFY_LIMIT =
 		2;	///< Error count limit before stopping to report FS errors
@@ -185,26 +178,34 @@ private:
 	void handle_mission_request_list(const mavlink_message_t *msg);
 
 	void handle_mission_request(const mavlink_message_t *msg);
+	void handle_mission_request_int(const mavlink_message_t *msg);
+	void handle_mission_request_both(const mavlink_message_t *msg);
 
 	void handle_mission_count(const mavlink_message_t *msg);
 
 	void handle_mission_item(const mavlink_message_t *msg);
+	void handle_mission_item_int(const mavlink_message_t *msg);
+	void handle_mission_item_both(const mavlink_message_t *msg);
 
 	void handle_mission_clear_all(const mavlink_message_t *msg);
 
 	/**
 	 * Parse mavlink MISSION_ITEM message to get mission_item_s.
+	 *
+	 * @param mavlink_mission_item pointer to mavlink_mission_item_t or mavlink_mission_item_int_t
+	 *			       depending on _int_mode
+	 * @param mission_item	       pointer to mission_item to construct
 	 */
 	int parse_mavlink_mission_item(const mavlink_mission_item_t *mavlink_mission_item, struct mission_item_s *mission_item);
 
 	/**
-	 * Format mission_item_s as mavlink MISSION_ITEM message.
+	 * Format mission_item_s as mavlink MISSION_ITEM(_INT) message.
+	 *
+	 * @param mission_item:		pointer to the existing mission item
+	 * @param mavlink_mission_item: pointer to mavlink_mission_item_t or mavlink_mission_item_int_t
+	 *				depending on _int_mode.
 	 */
 	int format_mavlink_mission_item(const struct mission_item_s *mission_item,
 					mavlink_mission_item_t *mavlink_mission_item);
 
-protected:
-	explicit MavlinkMissionManager(Mavlink *mavlink);
-
-	void send(const hrt_abstime t);
 };

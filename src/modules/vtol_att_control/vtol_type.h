@@ -60,14 +60,19 @@ struct Params {
 	int vtol_type;
 	int elevons_mc_lock;		// lock elevons in multicopter mode
 	float fw_min_alt;			// minimum relative altitude for FW mode (QuadChute)
+	float fw_qc_max_pitch;		// maximum pitch angle FW mode (QuadChute)
+	float fw_qc_max_roll;		// maximum roll angle FW mode (QuadChute)
+	float front_trans_time_openloop;
+	float front_trans_time_min;
 };
 
+// Has to match 1:1 msg/vtol_vehicle_status.msg
 enum mode {
-	ROTARY_WING = 0,
-	FIXED_WING,
-	TRANSITION_TO_FW,
-	TRANSITION_TO_MC,
-	EXTERNAL
+	TRANSITION_TO_FW = 1,
+	TRANSITION_TO_MC = 2,
+	ROTARY_WING = 3,
+	FIXED_WING = 4,
+	EXTERNAL = 5
 };
 
 enum vtol_type {
@@ -139,17 +144,19 @@ public:
 
 	mode get_mode() {return _vtol_mode;};
 
+	virtual void parameters_update() = 0;
+
 protected:
 	VtolAttitudeControl *_attc;
 	mode _vtol_mode;
 
 	struct vehicle_attitude_s		*_v_att;				//vehicle attitude
 	struct vehicle_attitude_setpoint_s	*_v_att_sp;			//vehicle attitude setpoint
-	struct mc_virtual_attitude_setpoint_s *_mc_virtual_att_sp;	// virtual mc attitude setpoint
-	struct fw_virtual_attitude_setpoint_s *_fw_virtual_att_sp;	// virtual fw attitude setpoint
+	struct vehicle_attitude_setpoint_s *_mc_virtual_att_sp;	// virtual mc attitude setpoint
+	struct vehicle_attitude_setpoint_s *_fw_virtual_att_sp;	// virtual fw attitude setpoint
 	struct vehicle_rates_setpoint_s 	*_v_rates_sp;		//vehicle rates setpoint
-	struct mc_virtual_rates_setpoint_s 	*_mc_virtual_v_rates_sp;		// virtual mc vehicle rates setpoint
-	struct fw_virtual_rates_setpoint_s 	*_fw_virtual_v_rates_sp;		// virtual fw vehicle rates setpoint
+	struct vehicle_rates_setpoint_s 	*_mc_virtual_v_rates_sp;		// virtual mc vehicle rates setpoint
+	struct vehicle_rates_setpoint_s 	*_fw_virtual_v_rates_sp;		// virtual fw vehicle rates setpoint
 	struct manual_control_setpoint_s	*_manual_control_sp; //manual control setpoint
 	struct vehicle_control_mode_s		*_v_control_mode;	//vehicle control mode
 	struct vtol_vehicle_status_s 		*_vtol_vehicle_status;
@@ -161,7 +168,6 @@ protected:
 	struct vehicle_local_position_s			*_local_pos;
 	struct airspeed_s 				*_airspeed;					// airspeed
 	struct battery_status_s 			*_batt_status; 				// battery status
-	struct vehicle_status_s 			*_vehicle_status;			// vehicle status from commander app
 	struct tecs_status_s				*_tecs_status;
 	struct vehicle_land_detected_s			*_land_detected;
 
@@ -174,7 +180,7 @@ protected:
 	float _mc_pitch_weight = 1.0f;	// weight for multicopter attitude controller pitch output
 	float _mc_yaw_weight = 1.0f;	// weight for multicopter attitude controller yaw output
 	float _mc_throttle_weight = 1.0f;	// weight for multicopter throttle command. Used to avoid
-	// motors spinning up or cutting too fast whend doing transitions.
+	// motors spinning up or cutting too fast when doing transitions.
 	float _thrust_transition = 0.0f;	// thrust value applied during a front transition (tailsitter & tiltrotor only)
 
 	bool _flag_was_in_trans_mode = false;	// true if mode has just switched to transition

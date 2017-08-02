@@ -43,8 +43,6 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-// Hack until everything is using this header
-#include <systemlib/visibility.h>
 
 /**
  * Object metadata.
@@ -61,14 +59,14 @@ typedef const struct orb_metadata *orb_id_t;
 /**
  * Maximum number of multi topic instances
  */
-#define ORB_MULTI_MAX_INSTANCES	4
+#define ORB_MULTI_MAX_INSTANCES	4 // This must be < 10 (because it's the last char of the node path)
 
 /**
  * Topic priority.
  * Relevant for multi-topics / topic groups
  */
 enum ORB_PRIO {
-	ORB_PRIO_MIN = 0,
+	ORB_PRIO_MIN = 1, // leave 0 free for other purposes, eg. marking an uninitialized value
 	ORB_PRIO_VERY_LOW = 25,
 	ORB_PRIO_LOW = 50,
 	ORB_PRIO_DEFAULT = 75,

@@ -154,35 +154,29 @@ ETSAirspeed::collect()
 		return ret;
 	}
 
-	uint16_t diff_pres_pa_raw = val[1] << 8 | val[0];
+	float diff_pres_pa_raw = (float)(val[1] << 8 | val[0]);
 
-	if (diff_pres_pa_raw == 0) {
-		// a zero value means the pressure sensor cannot give us a
-		// value. We need to return, and not report a value or the
-		// caller could end up using this value as part of an
-		// average
-		perf_count(_comms_errors);
-		DEVICE_LOG("zero value from sensor");
-		return -1;
+	differential_pressure_s report;
+	report.timestamp = hrt_absolute_time();
+
+	if (diff_pres_pa_raw < FLT_EPSILON) {
+		// a zero value indicates no measurement
+		// since the noise floor has been arbitrarily killed
+		// it defeats our stuck sensor detection - the best we
+		// can do is to output some numerical noise to show
+		// that we are still correctly sampling.
+		diff_pres_pa_raw = 0.001f * (report.timestamp & 0x01);
 	}
 
 	// The raw value still should be compensated for the known offset
 	diff_pres_pa_raw -= _diff_pres_offset;
 
-	// Track maximum differential pressure measured (so we can work out top speed).
-	if (diff_pres_pa_raw > _max_differential_pressure_pa) {
-		_max_differential_pressure_pa = diff_pres_pa_raw;
-	}
-
-	differential_pressure_s report;
-	report.timestamp = hrt_absolute_time();
 	report.error_count = perf_event_count(_comms_errors);
 
 	// XXX we may want to smooth out the readings to remove noise.
 	report.differential_pressure_filtered_pa = diff_pres_pa_raw;
 	report.differential_pressure_raw_pa = diff_pres_pa_raw;
 	report.temperature = -1000.0f;
-	report.max_differential_pressure_pa = _max_differential_pressure_pa;
 
 	if (_airspeed_pub != nullptr && !(_pub_blocked)) {
 		/* publish it */
@@ -265,12 +259,6 @@ ETSAirspeed::cycle()
 namespace ets_airspeed
 {
 
-/* oddly, ERROR is not defined for c++ */
-#ifdef ERROR
-# undef ERROR
-#endif
-const int ERROR = -1;
-
 ETSAirspeed	*g_dev;
 
 void	start(int i2c_bus);
@@ -325,7 +313,8 @@ fail:
 		g_dev = nullptr;
 	}
 
-	errx(1, "no ETS airspeed sensor connected");
+	PX4_WARN("no ETS airspeed sensor connected");
+	exit(1);
 }
 
 /**

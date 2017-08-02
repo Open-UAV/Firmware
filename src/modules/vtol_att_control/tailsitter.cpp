@@ -81,7 +81,7 @@ Tailsitter::~Tailsitter()
 
 }
 
-int
+void
 Tailsitter::parameters_update()
 {
 	float v;
@@ -117,19 +117,19 @@ Tailsitter::parameters_update()
 	if (_params_tailsitter.airspeed_trans < _params_tailsitter.airspeed_blend_start + 1.0f) {
 		_params_tailsitter.airspeed_trans = _params_tailsitter.airspeed_blend_start + 1.0f;
 	}
-
-	return OK;
 }
 
 void Tailsitter::update_vtol_state()
 {
-	parameters_update();
 
 	/* simple logic using a two way switch to perform transitions.
 	 * after flipping the switch the vehicle will start tilting in MC control mode, picking up
 	 * forward speed. After the vehicle has picked up enough and sufficient pitch angle the uav will go into FW mode.
 	 * For the backtransition the pitch is controlled in MC mode again and switches to full MC control reaching the sufficient pitch angle.
 	*/
+
+	matrix::Eulerf euler = matrix::Quatf(_v_att->q);
+	float pitch = euler.theta();
 
 	if (!_attc->is_fixed_wing_requested()) {
 
@@ -157,7 +157,7 @@ void Tailsitter::update_vtol_state()
 		case TRANSITION_BACK:
 
 			// check if we have reached pitch angle to switch to MC mode
-			if (_v_att->pitch >= PITCH_TRANSITION_BACK) {
+			if (pitch >= PITCH_TRANSITION_BACK) {
 				_vtol_schedule.flight_mode = MC_MODE;
 			}
 
@@ -180,7 +180,7 @@ void Tailsitter::update_vtol_state()
 
 			// check if we have reached airspeed  and pitch angle to switch to TRANSITION P2 mode
 			if ((_airspeed->indicated_airspeed_m_s >= _params_tailsitter.airspeed_trans
-			     && _v_att->pitch <= PITCH_TRANSITION_FRONT_P1) || can_transition_on_ground()) {
+			     && pitch <= PITCH_TRANSITION_FRONT_P1) || can_transition_on_ground()) {
 				_vtol_schedule.flight_mode = FW_MODE;
 				//_vtol_schedule.transition_start = hrt_absolute_time();
 			}
@@ -246,14 +246,14 @@ void Tailsitter::update_transition_state()
 		/** create time dependant pitch angle set point + 0.2 rad overlap over the switch value*/
 		_v_att_sp->pitch_body = _pitch_transition_start	- (fabsf(PITCH_TRANSITION_FRONT_P1 - _pitch_transition_start) *
 					(float)hrt_elapsed_time(&_vtol_schedule.transition_start) / (_params_tailsitter.front_trans_dur * 1000000.0f));
-		_v_att_sp->pitch_body = math::constrain(_v_att_sp->pitch_body , PITCH_TRANSITION_FRONT_P1 - 0.2f ,
+		_v_att_sp->pitch_body = math::constrain(_v_att_sp->pitch_body, PITCH_TRANSITION_FRONT_P1 - 0.2f,
 							_pitch_transition_start);
 
 		/** create time dependant throttle signal higher than  in MC and growing untill  P2 switch speed reached */
 		if (_airspeed->indicated_airspeed_m_s <= _params_tailsitter.airspeed_trans) {
 			_thrust_transition = _thrust_transition_start + (fabsf(THROTTLE_TRANSITION_MAX * _thrust_transition_start) *
 					     (float)hrt_elapsed_time(&_vtol_schedule.transition_start) / (_params_tailsitter.front_trans_dur * 1000000.0f));
-			_thrust_transition = math::constrain(_thrust_transition , _thrust_transition_start ,
+			_thrust_transition = math::constrain(_thrust_transition, _thrust_transition_start,
 							     (1.0f + THROTTLE_TRANSITION_MAX) * _thrust_transition_start);
 			_v_att_sp->thrust = _thrust_transition;
 		}
@@ -316,7 +316,7 @@ void Tailsitter::update_transition_state()
 		/** create time dependant pitch angle set point stating at -pi/2 + 0.2 rad overlap over the switch value*/
 		_v_att_sp->pitch_body = M_PI_2_F + _pitch_transition_start + fabsf(PITCH_TRANSITION_BACK + 1.57f) *
 					(float)hrt_elapsed_time(&_vtol_schedule.transition_start) / (_params_tailsitter.back_trans_dur * 1000000.0f);
-		_v_att_sp->pitch_body = math::constrain(_v_att_sp->pitch_body , -2.0f , PITCH_TRANSITION_BACK + 0.2f);
+		_v_att_sp->pitch_body = math::constrain(_v_att_sp->pitch_body, -2.0f, PITCH_TRANSITION_BACK + 0.2f);
 
 		//  throttle value is decreesed
 		_v_att_sp->thrust = _thrust_transition_start * 0.9f;
@@ -344,14 +344,9 @@ void Tailsitter::update_transition_state()
 	_v_att_sp->timestamp = hrt_absolute_time();
 	_v_att_sp->roll_body = 0.0f;
 	_v_att_sp->yaw_body = _yaw_transition;
-	_v_att_sp->R_valid = true;
-
-	math::Matrix<3, 3> R_sp;
-	R_sp.from_euler(_v_att_sp->roll_body, _v_att_sp->pitch_body, _v_att_sp->yaw_body);
-	memcpy(&_v_att_sp->R_body[0], R_sp.data, sizeof(_v_att_sp->R_body));
 
 	math::Quaternion q_sp;
-	q_sp.from_dcm(R_sp);
+	q_sp.from_euler(_v_att_sp->roll_body, _v_att_sp->pitch_body, _v_att_sp->yaw_body);
 	memcpy(&_v_att_sp->q_d[0], &q_sp.data[0], sizeof(_v_att_sp->q_d));
 }
 

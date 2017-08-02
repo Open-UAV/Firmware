@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (c) 2015, 2016 Airmind Development Team. All rights reserved.
+ *   Copyright (c) 2015, 2016 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -12,7 +12,7 @@
  *    notice, this list of conditions and the following disclaimer in
  *    the documentation and/or other materials provided with the
  *    distribution.
- * 3. Neither the name Airmind nor the names of its contributors may be
+ * 3. Neither the name PX4 nor the names of its contributors may be
  *    used to endorse or promote products derived from this software
  *    without specific prior written permission.
  *
@@ -35,10 +35,10 @@
  * @file mindpx2_init.c
  *
  * MINDPX-specific early startup code.  This file implements the
- * nsh_archinitialize() function that is called early by nsh during startup.
+ * board_app_initialize() function that is called early by nsh during startup.
  *
  * Code here is run before the rcS script is invoked; it should start required
- * subsystems and perform board-specific initialisation.
+ * subsystems and perform board-specific initialization.
  */
 
 /****************************************************************************
@@ -46,19 +46,22 @@
  ****************************************************************************/
 
 #include <px4_config.h>
+#include <px4_tasks.h>
 
 #include <stdbool.h>
 #include <stdio.h>
+#include <string.h>
 #include <debug.h>
 #include <errno.h>
 
 #include <nuttx/arch.h>
-#include <nuttx/spi.h>
-#include <nuttx/i2c.h>
+#include <nuttx/board.h>
+#include <nuttx/spi/spi.h>
+#include <nuttx/i2c/i2c_master.h>
 #include <nuttx/sdio.h>
 #include <nuttx/mmcsd.h>
 #include <nuttx/analog/adc.h>
-#include <nuttx/gran.h>
+#include <nuttx/mm/gran.h>
 
 #include <stm32.h>
 #include "board_config.h"
@@ -67,10 +70,16 @@
 #include <arch/board/board.h>
 
 #include <drivers/drv_hrt.h>
-#include <drivers/drv_led.h>
+#include <drivers/drv_board_led.h>
 
+#include <systemlib/px4_macros.h>
 #include <systemlib/cpuload.h>
 #include <systemlib/perf_counter.h>
+
+#include <systemlib/hardfault_log.h>
+
+#include <systemlib/systemlib.h>
+#include <systemlib/param/param.h>
 
 /****************************************************************************
  * Pre-Processor Definitions
@@ -82,13 +91,13 @@
 
 #ifdef CONFIG_CPP_HAVE_VARARGS
 #  ifdef CONFIG_DEBUG
-#    define message(...) lowsyslog(__VA_ARGS__)
+#    define message(...) syslog(__VA_ARGS__)
 #  else
 #    define message(...) printf(__VA_ARGS__)
 #  endif
 #else
 #  ifdef CONFIG_DEBUG
-#    define message lowsyslog
+#    define message syslog
 #  else
 #    define message printf
 #  endif
@@ -126,18 +135,69 @@ __END_DECLS
 __EXPORT void
 stm32_boardinitialize(void)
 {
+	/* configure LEDs */
+
+	board_autoled_initialize();
+
+	/* configure ADC pins */
+
+	px4_arch_configgpio(GPIO_ADC1_IN4);	/* VDD_5V_SENS */
+	px4_arch_configgpio(GPIO_ADC1_IN10);	/* BATT_CURRENT_SENS */
+	px4_arch_configgpio(GPIO_ADC1_IN12);	/* BATT_VOLTAGE_SENS */
+	px4_arch_configgpio(GPIO_ADC1_IN11);	/* RSSI analog in */
+	px4_arch_configgpio(GPIO_ADC1_IN13);	/* FMU_AUX_ADC_1 */
+	px4_arch_configgpio(GPIO_ADC1_IN14);	/* FMU_AUX_ADC_2 */
+	px4_arch_configgpio(GPIO_ADC1_IN15);	/* PRESSURE_SENS */
+
+	/* configure power supply control/sense pins */
+
+	px4_arch_configgpio(GPIO_SBUS_INV);
+	px4_arch_configgpio(GPIO_FRSKY_INV);
+
+	/* configure the GPIO pins to outputs and keep them low */
+	px4_arch_configgpio(GPIO_GPIO0_OUTPUT);
+	px4_arch_configgpio(GPIO_GPIO1_OUTPUT);
+	px4_arch_configgpio(GPIO_GPIO2_OUTPUT);
+	px4_arch_configgpio(GPIO_GPIO3_OUTPUT);
+	px4_arch_configgpio(GPIO_GPIO4_OUTPUT);
+	px4_arch_configgpio(GPIO_GPIO5_OUTPUT);
+	px4_arch_configgpio(GPIO_GPIO6_OUTPUT);
+	px4_arch_configgpio(GPIO_GPIO7_OUTPUT);
+
 	/* configure SPI interfaces */
+
 	stm32_spiinitialize();
 
-	/* configure LEDs */
-	up_ledinit();
+	stm32_configgpio(GPIO_I2C2_SCL);
+	stm32_configgpio(GPIO_I2C2_SDA);
+
+	stm32_configgpio(GPIO_I2C1_SCL);
+	stm32_configgpio(GPIO_I2C1_SDA);
+
 }
 
 /****************************************************************************
- * Name: nsh_archinitialize
+ * Name: board_app_initialize
  *
  * Description:
- *   Perform architecture specific initialization
+ *   Perform application specific initialization.  This function is never
+ *   called directly from application code, but only indirectly via the
+ *   (non-standard) boardctl() interface using the command BOARDIOC_INIT.
+ *
+ * Input Parameters:
+ *   arg - The boardctl() argument is passed to the board_app_initialize()
+ *         implementation without modification.  The argument has no
+ *         meaning to NuttX; the meaning of the argument is a contract
+ *         between the board-specific initalization logic and the the
+ *         matching application logic.  The value cold be such things as a
+ *         mode enumeration value, a set of DIP switch switch settings, a
+ *         pointer to configuration data read from a file or serial FLASH,
+ *         or whatever you would like to do with it.  Every implementation
+ *         should accept zero/NULL as a default configuration.
+ *
+ * Returned Value:
+ *   Zero (OK) is returned on success; a negated errno value is returned on
+ *   any failure to indicate the nature of the failure.
  *
  ****************************************************************************/
 
@@ -146,46 +206,28 @@ static struct spi_dev_s *spi2;
 static struct spi_dev_s *spi4;
 static struct sdio_dev_s *sdio;
 
-#include <math.h>
-
-#if 0
-#ifdef __cplusplus
-__EXPORT int matherr(struct __exception *e)
+__EXPORT int board_app_initialize(uintptr_t arg)
 {
-	return 1;
-}
+
+#if defined(CONFIG_HAVE_CXX) && defined(CONFIG_HAVE_CXXINITIALIZE)
+
+	/* run C++ ctors before we go any further */
+
+	up_cxxinitialize();
+
+#	if defined(CONFIG_EXAMPLES_NSH_CXXINITIALIZE)
+#  		error CONFIG_EXAMPLES_NSH_CXXINITIALIZE Must not be defined! Use CONFIG_HAVE_CXX and CONFIG_HAVE_CXXINITIALIZE.
+#	endif
+
 #else
-__EXPORT int matherr(struct exception *e)
-{
-	return 1;
-}
+#  error platform is dependent on c++ both CONFIG_HAVE_CXX and CONFIG_HAVE_CXXINITIALIZE must be defined.
 #endif
-#endif
-
-__EXPORT int nsh_archinitialize(void)
-{
-
-	/* configure ADC pins */
-	px4_arch_configgpio(GPIO_ADC1_IN3);	/* BATT_VOLTAGE_SENS */
-	px4_arch_configgpio(GPIO_ADC1_IN2);	/* BATT_CURRENT_SENS */
-	px4_arch_configgpio(GPIO_ADC1_IN4);	/* VDD_5V_SENS */
-	px4_arch_configgpio(GPIO_ADC1_IN10);	/* used by VBUS valid */
-	// px4_arch_configgpio(GPIO_ADC1_IN11);	/* unused */
-	// px4_arch_configgpio(GPIO_ADC1_IN12);	/* used by MPU6000 CS */
-	px4_arch_configgpio(GPIO_ADC1_IN13);	/* FMU_AUX_ADC_1 */
-	px4_arch_configgpio(GPIO_ADC1_IN14);	/* FMU_AUX_ADC_2 */
-	px4_arch_configgpio(GPIO_ADC1_IN15);	/* PRESSURE_SENS */
-
-	/* configure power supply control/sense pins */
-//	px4_arch_configgpio(GPIO_VDD_5V_PERIPH_EN);
-//	px4_arch_configgpio(GPIO_VDD_3V3_SENSORS_EN);
-//	px4_arch_configgpio(GPIO_VDD_BRICK_VALID);
-//	px4_arch_configgpio(GPIO_VDD_SERVO_VALID);
-//	px4_arch_configgpio(GPIO_VDD_5V_HIPOWER_OC);
-//	px4_arch_configgpio(GPIO_VDD_5V_PERIPH_OC);
 
 	/* configure the high-resolution time/callout interface */
+
 	hrt_init();
+
+	param_init();
 
 	/* configure the DMA allocator */
 
@@ -215,17 +257,149 @@ __EXPORT int nsh_archinitialize(void)
 		       (hrt_callout)stm32_serial_dma_poll,
 		       NULL);
 
+#if defined(CONFIG_STM32_BBSRAM)
+
+	/* NB. the use of the console requires the hrt running
+	 * to poll the DMA
+	 */
+
+	/* Using Battery Backed Up SRAM */
+
+	int filesizes[CONFIG_STM32_BBSRAM_FILES + 1] = BSRAM_FILE_SIZES;
+
+	stm32_bbsraminitialize(BBSRAM_PATH, filesizes);
+
+#if defined(CONFIG_STM32_SAVE_CRASHDUMP)
+
+	/* Panic Logging in Battery Backed Up Files */
+
+	/*
+	 * In an ideal world, if a fault happens in flight the
+	 * system save it to BBSRAM will then reboot. Upon
+	 * rebooting, the system will log the fault to disk, recover
+	 * the flight state and continue to fly.  But if there is
+	 * a fault on the bench or in the air that prohibit the recovery
+	 * or committing the log to disk, the things are too broken to
+	 * fly. So the question is:
+	 *
+	 * Did we have a hard fault and not make it far enough
+	 * through the boot sequence to commit the fault data to
+	 * the SD card?
+	 */
+
+	/* Do we have an uncommitted hard fault in BBSRAM?
+	 *  - this will be reset after a successful commit to SD
+	 */
+	int hadCrash = hardfault_check_status("boot");
+
+	if (hadCrash == OK) {
+
+		message("[boot] There is a hard fault logged. Hold down the SPACE BAR," \
+			" while booting to halt the system!\n");
+
+		/* Yes. So add one to the boot count - this will be reset after a successful
+		 * commit to SD
+		 */
+
+		int reboots = hardfault_increment_reboot("boot", false);
+
+		/* Also end the misery for a user that holds for a key down on the console */
+
+		int bytesWaiting;
+		ioctl(fileno(stdin), FIONREAD, (unsigned long)((uintptr_t) &bytesWaiting));
+
+		if (reboots > 2 || bytesWaiting != 0) {
+
+			/* Since we can not commit the fault dump to disk. Display it
+			 * to the console.
+			 */
+
+			hardfault_write("boot", fileno(stdout), HARDFAULT_DISPLAY_FORMAT, false);
+
+			message("[boot] There were %d reboots with Hard fault that were not committed to disk - System halted %s\n",
+				reboots,
+				(bytesWaiting == 0 ? "" : " Due to Key Press\n"));
+
+
+			/* For those of you with a debugger set a break point on up_assert and
+			 * then set dbgContinue = 1 and go.
+			 */
+
+			/* Clear any key press that got us here */
+
+			static volatile bool dbgContinue = false;
+			int c = '>';
+
+			while (!dbgContinue) {
+
+				switch (c) {
+
+				case EOF:
+
+
+				case '\n':
+				case '\r':
+				case ' ':
+					continue;
+
+				default:
+
+					putchar(c);
+					putchar('\n');
+
+					switch (c) {
+
+					case 'D':
+					case 'd':
+						hardfault_write("boot", fileno(stdout), HARDFAULT_DISPLAY_FORMAT, false);
+						break;
+
+					case 'C':
+					case 'c':
+						hardfault_rearm("boot");
+						hardfault_increment_reboot("boot", true);
+						break;
+
+					case 'B':
+					case 'b':
+						dbgContinue = true;
+						break;
+
+					default:
+						break;
+					} // Inner Switch
+
+					message("\nEnter B - Continue booting\n" \
+						"Enter C - Clear the fault log\n" \
+						"Enter D - Dump fault log\n\n?>");
+					fflush(stdout);
+
+					if (!dbgContinue) {
+						c = getchar();
+					}
+
+					break;
+
+				} // outer switch
+			} // for
+
+		} // inner if
+	} // outer if
+
+#endif // CONFIG_STM32_SAVE_CRASHDUMP
+#endif // CONFIG_STM32_BBSRAM
+
 	/* initial LED state */
 	drv_led_start();
 	led_off(LED_AMBER);
 
 	/* Configure SPI-based devices */
-	message("[boot] Initialized SPI port 4 (SENSORS)\n");
+
 	spi4 = px4_spibus_initialize(4);
 
 	if (!spi4) {
 		message("[boot] FAILED to initialize SPI port 4\n");
-		up_ledon(LED_AMBER);
+		board_autoled_on(LED_AMBER);
 		return -ENODEV;
 	}
 
@@ -240,13 +414,12 @@ __EXPORT int nsh_archinitialize(void)
 	up_udelay(20);
 
 	/* Get the SPI port for the FRAM */
-	message("[boot] Initialized SPI port 1 (RAMTRON FRAM)\n");
 
-	spi1 = px4_spibus_initialize(1);
+	spi1 = stm32_spibus_initialize(1);
 
 	if (!spi1) {
 		message("[boot] FAILED to initialize SPI port 1\n");
-		up_ledon(LED_AMBER);
+		board_autoled_on(LED_AMBER);
 		return -ENODEV;
 	}
 
@@ -260,9 +433,6 @@ __EXPORT int nsh_archinitialize(void)
 	SPI_SELECT(spi1, SPIDEV_FLASH, false);
 
 
-
-	message("[boot] Initialized SPI port 2 (nRF24 and ext)\n");
-
 	spi2 = px4_spibus_initialize(2);
 
 	/* Default SPI2 to 10MHz and de-assert the known chip selects. */
@@ -270,9 +440,7 @@ __EXPORT int nsh_archinitialize(void)
 	SPI_SETBITS(spi2, 8);
 	SPI_SETMODE(spi2, SPIDEV_MODE3);
 	SPI_SELECT(spi2, PX4_SPIDEV_EXT0, false);
-	SPI_SELECT(spi2, PX4_SPIDEV_EXT1, false);
-	SPI_SELECT(spi2, PX4_SPIDEV_EXT2, false);
-	SPI_SELECT(spi2, PX4_SPIDEV_EXT3, false);
+
 
 #ifdef CONFIG_MMCSD
 	/* First, get an instance of the SDIO interface */
@@ -297,17 +465,6 @@ __EXPORT int nsh_archinitialize(void)
 	sdio_mediachange(sdio, true);
 
 #endif
-
-
-	px4_arch_configgpio(GPIO_I2C2_SCL);
-	px4_arch_configgpio(GPIO_I2C2_SDA);
-	message("[boot] Initialized ext I2C Port\n");
-
-	px4_arch_configgpio(GPIO_I2C1_SCL);
-	px4_arch_configgpio(GPIO_I2C1_SDA);
-	message("[boot] Initialized onboard I2C Port\n");
-
-
 
 	return OK;
 }

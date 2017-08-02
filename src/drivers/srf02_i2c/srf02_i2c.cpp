@@ -40,6 +40,7 @@
  */
 
 #include <px4_config.h>
+#include <px4_defines.h>
 
 #include <drivers/device/i2c.h>
 
@@ -93,13 +94,6 @@
 #define SRF02_CONVERSION_INTERVAL 	100000 /* 60ms for one sonar */
 #define TICKS_BETWEEN_SUCCESIVE_FIRES 	100000 /* 30ms between each sonar measurement (watch out for interference!) */
 
-
-/* oddly, ERROR is not defined for c++ */
-#ifdef ERROR
-# undef ERROR
-#endif
-static const int ERROR = -1;
-
 #ifndef CONFIG_SCHED_WORKQUEUE
 # error This requires CONFIG_SCHED_WORKQUEUE.
 #endif
@@ -138,7 +132,6 @@ private:
 
 	perf_counter_t		_sample_perf;
 	perf_counter_t		_comms_errors;
-	perf_counter_t		_buffer_overflows;
 
 	uint8_t				_cycle_counter;	/* counter in cycle to change i2c adresses */
 	int					_cycling_rate;	/* */
@@ -216,7 +209,6 @@ SRF02_I2C::SRF02_I2C(int bus, int address) :
 	_distance_sensor_topic(nullptr),
 	_sample_perf(perf_alloc(PC_ELAPSED, "srf02_i2c_read")),
 	_comms_errors(perf_alloc(PC_COUNT, "srf02_i2c_comms_errors")),
-	_buffer_overflows(perf_alloc(PC_COUNT, "srf02_i2c_buffer_overflows")),
 	_cycle_counter(0),	/* initialising counter for cycling function to zero */
 	_cycling_rate(0),	/* initialising cycling rate (which can differ depending on one sonar or multiple) */
 	_index_counter(0) 	/* initialising temp sonar i2c address to zero */
@@ -246,13 +238,12 @@ SRF02_I2C::~SRF02_I2C()
 	/* free perf counters */
 	perf_free(_sample_perf);
 	perf_free(_comms_errors);
-	perf_free(_buffer_overflows);
 }
 
 int
 SRF02_I2C::init()
 {
-	int ret = ERROR;
+	int ret = PX4_ERROR;
 
 	/* do I2C init (and probe) first */
 	if (I2C::init() != OK) {
@@ -595,9 +586,7 @@ SRF02_I2C::collect()
 		orb_publish(ORB_ID(distance_sensor), _distance_sensor_topic, &report);
 	}
 
-	if (_reports->force(&report)) {
-		perf_count(_buffer_overflows);
-	}
+	_reports->force(&report);
 
 	/* notify anyone waiting for data */
 	poll_notify(POLLIN);
@@ -721,7 +710,6 @@ SRF02_I2C::print_info()
 {
 	perf_print_counter(_sample_perf);
 	perf_print_counter(_comms_errors);
-	perf_print_counter(_buffer_overflows);
 	printf("poll interval:  %u ticks\n", _measure_ticks);
 	_reports->print_info("report queue");
 }
@@ -731,12 +719,6 @@ SRF02_I2C::print_info()
  */
 namespace  srf02_i2c
 {
-
-/* oddly, ERROR is not defined for c++ */
-#ifdef ERROR
-# undef ERROR
-#endif
-const int ERROR = -1;
 
 SRF02_I2C	*g_dev;
 

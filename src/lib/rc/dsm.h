@@ -54,14 +54,16 @@ __BEGIN_DECLS
 #define DSM_BUFFER_SIZE		(DSM_FRAME_SIZE + DSM_FRAME_SIZE / 2)
 
 __EXPORT int	dsm_init(const char *device);
+__EXPORT void	dsm_deinit(void);
+__EXPORT void	dsm_proto_init(void);
 __EXPORT int	dsm_config(int dsm_fd);
 __EXPORT bool	dsm_input(int dsm_fd, uint16_t *values, uint16_t *num_values, bool *dsm_11_bit, uint8_t *n_bytes,
 			  uint8_t **bytes, unsigned max_values);
 
-__EXPORT bool	dsm_parse(uint64_t now, uint8_t *frame, unsigned len, uint16_t *values,
+__EXPORT bool	dsm_parse(const uint64_t now, const uint8_t *frame, const unsigned len, uint16_t *values,
 			  uint16_t *num_values, bool *dsm_11_bit, unsigned *frame_drops, uint16_t max_channels);
 
-#ifdef GPIO_SPEKTRUM_PWR_EN
+#ifdef SPEKTRUM_POWER
 __EXPORT void	dsm_bind(uint16_t cmd, int pulses);
 #endif
 

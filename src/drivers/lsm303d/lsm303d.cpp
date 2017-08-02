@@ -37,6 +37,7 @@
  */
 
 #include <px4_config.h>
+#include <px4_defines.h>
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -70,12 +71,6 @@
 #include <board_config.h>
 #include <mathlib/math/filter/LowPassFilter2p.hpp>
 #include <lib/conversion/rotation.h>
-
-/* oddly, ERROR is not defined for c++ */
-#ifdef ERROR
-# undef ERROR
-#endif
-static const int ERROR = -1;
 
 /* SPI protocol address bits */
 #define DIR_READ				(1<<7)
@@ -202,7 +197,7 @@ static const int ERROR = -1;
 #define INT_SRC_M               0x13
 
 /* default values for this device */
-#define LSM303D_ACCEL_DEFAULT_RANGE_G			8
+#define LSM303D_ACCEL_DEFAULT_RANGE_G			16
 #define LSM303D_ACCEL_DEFAULT_RATE			800
 #define LSM303D_ACCEL_DEFAULT_ONCHIP_FILTER_FREQ	50
 #define LSM303D_ACCEL_DEFAULT_DRIVER_FILTER_FREQ	30
@@ -647,7 +642,7 @@ LSM303D::~LSM303D()
 int
 LSM303D::init()
 {
-	int ret = ERROR;
+	int ret = PX4_ERROR;
 
 	/* do SPI init (and probe) first */
 	if (SPI::init() != OK) {
@@ -1132,31 +1127,6 @@ LSM303D::accel_self_test()
 		return 1;
 	}
 
-	/* inspect accel offsets */
-	if (fabsf(_accel_scale.x_offset) < 0.000001f) {
-		return 1;
-	}
-
-	if (fabsf(_accel_scale.x_scale - 1.0f) > 0.4f || fabsf(_accel_scale.x_scale - 1.0f) < 0.000001f) {
-		return 1;
-	}
-
-	if (fabsf(_accel_scale.y_offset) < 0.000001f) {
-		return 1;
-	}
-
-	if (fabsf(_accel_scale.y_scale - 1.0f) > 0.4f || fabsf(_accel_scale.y_scale - 1.0f) < 0.000001f) {
-		return 1;
-	}
-
-	if (fabsf(_accel_scale.z_offset) < 0.000001f) {
-		return 1;
-	}
-
-	if (fabsf(_accel_scale.z_scale - 1.0f) > 0.4f || fabsf(_accel_scale.z_scale - 1.0f) < 0.000001f) {
-		return 1;
-	}
-
 	return 0;
 }
 
@@ -1574,17 +1544,7 @@ LSM303D::measure()
 	 *		  74 from all measurements centers them around zero.
 	 */
 
-
 	accel_report.timestamp = hrt_absolute_time();
-
-#if defined(CONFIG_ARCH_BOARD_MINDPX_V2)
-	int16_t tx = raw_accel_report.y;
-	int16_t ty = raw_accel_report.x;
-	int16_t tz = -raw_accel_report.z;
-	raw_accel_report.x = tx;
-	raw_accel_report.y = ty;
-	raw_accel_report.z = tz;
-#endif
 
 	// use the temperature from the last mag reading
 	accel_report.temperature = _last_temperature;
@@ -1657,6 +1617,9 @@ LSM303D::measure()
 	accel_report.scaling = _accel_range_scale;
 	accel_report.range_m_s2 = _accel_range_m_s2;
 
+	/* return device ID */
+	accel_report.device_id = _device_id.devid;
+
 	_accel_reports->force(&accel_report);
 
 	/* notify anyone waiting for data */
@@ -1690,8 +1653,7 @@ LSM303D::mag_measure()
 	} raw_mag_report;
 #pragma pack(pop)
 
-	mag_report mag_report;
-	memset(&mag_report, 0, sizeof(mag_report));
+	mag_report mag_report {};
 
 	/* start the performance counter */
 	perf_begin(_mag_sample_perf);
@@ -1716,19 +1678,8 @@ LSM303D::mag_measure()
 	 *		  74 from all measurements centers them around zero.
 	 */
 
-
 	mag_report.timestamp = hrt_absolute_time();
-
-#if defined(CONFIG_ARCH_BOARD_MINDPX_V2)
-	int16_t tx = raw_mag_report.y;
-	int16_t ty = raw_mag_report.x;
-	int16_t tz = -raw_mag_report.z;
-	raw_mag_report.x = tx;
-	raw_mag_report.y = ty;
-	raw_mag_report.z = tz;
-#endif
-
-
+	mag_report.is_external = is_external();
 
 	mag_report.x_raw = raw_mag_report.x;
 	mag_report.y_raw = raw_mag_report.y;
@@ -1753,6 +1704,7 @@ LSM303D::mag_measure()
 	 */
 	_last_temperature = 25 + (raw_mag_report.temperature * 0.125f);
 	mag_report.temperature = _last_temperature;
+	mag_report.device_id = _mag->_device_id.devid;
 
 	_mag_reports->force(&mag_report);
 
@@ -2060,7 +2012,7 @@ test()
 
 	warnx("accel range: %8.4f m/s^2", (double)accel_report.range_m_s2);
 
-	if (ERROR == (ret = ioctl(fd_accel, ACCELIOCGLOWPASS, 0))) {
+	if (PX4_ERROR == (ret = ioctl(fd_accel, ACCELIOCGLOWPASS, 0))) {
 		warnx("accel antialias filter bandwidth: fail");
 
 	} else {

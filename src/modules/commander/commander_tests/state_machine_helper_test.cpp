@@ -49,7 +49,7 @@ public:
 	StateMachineHelperTest();
 	virtual ~StateMachineHelperTest();
 
-	virtual bool run_tests(void);
+	virtual bool run_tests();
 
 private:
 	bool armingStateTransitionTest();
@@ -63,7 +63,7 @@ StateMachineHelperTest::StateMachineHelperTest() {
 StateMachineHelperTest::~StateMachineHelperTest() {
 }
 
-bool StateMachineHelperTest::armingStateTransitionTest(void)
+bool StateMachineHelperTest::armingStateTransitionTest()
 {
     // These are the critical values from vehicle_status_s and actuator_armed_s which must be primed
     // to simulate machine state prior to testing an arming state transition. This structure is also
@@ -293,10 +293,14 @@ bool StateMachineHelperTest::armingStateTransitionTest(void)
 
         // Attempt transition
         transition_result_t result = arming_state_transition(&status, &battery, &safety, test->requested_state, &armed,
-        		false /* no pre-arm checks */,
-        		nullptr /* no mavlink_log_pub */,
-        		&status_flags,
-        		5.0f, check_gps);
+				false /* no pre-arm checks */,
+				nullptr /* no mavlink_log_pub */,
+				&status_flags,
+				5.0f, /* avionics rail voltage */
+				check_gps,
+				false, /* valid mission not required*/
+				2e6 /* 2 seconds after boot, everything should be checked */
+				);
 
         // Validate result of transition
         ut_compare(test->assertMsg, test->expected_transition_result, result);
@@ -308,7 +312,7 @@ bool StateMachineHelperTest::armingStateTransitionTest(void)
 	return true;
 }
 
-bool StateMachineHelperTest::mainStateTransitionTest(void)
+bool StateMachineHelperTest::mainStateTransitionTest()
 {
 	// This structure represent a single test case for testing Main State transitions.
 	typedef struct {
@@ -339,6 +343,10 @@ bool StateMachineHelperTest::mainStateTransitionTest(void)
 
 		{ "transition: MANUAL to ACRO - rotary",
 			MTT_ROTARY_WING,
+			commander_state_s::MAIN_STATE_MANUAL, commander_state_s::MAIN_STATE_ACRO, TRANSITION_CHANGED },
+
+		{ "transition: MANUAL to ACRO - not rotary",
+			MTT_ALL_NOT_VALID,
 			commander_state_s::MAIN_STATE_MANUAL, commander_state_s::MAIN_STATE_ACRO, TRANSITION_CHANGED },
 
 		{ "transition: ACRO to MANUAL",
@@ -399,10 +407,6 @@ bool StateMachineHelperTest::mainStateTransitionTest(void)
 
 		// TRANSITION_DENIED tests
 
-		{ "transition: MANUAL to ACRO - not rotary",
-			MTT_ALL_NOT_VALID,
-			commander_state_s::MAIN_STATE_MANUAL, commander_state_s::MAIN_STATE_ACRO, TRANSITION_DENIED },
-
 		{ "no transition: MANUAL to AUTO_MISSION - global position not valid",
 			MTT_ALL_NOT_VALID,
 			commander_state_s::MAIN_STATE_MANUAL, commander_state_s::MAIN_STATE_AUTO_MISSION, TRANSITION_DENIED },
@@ -453,6 +457,7 @@ bool StateMachineHelperTest::mainStateTransitionTest(void)
 		current_status_flags.condition_local_position_valid = test->condition_bits & MTT_LOC_POS_VALID;
 		current_status_flags.condition_home_position_valid = test->condition_bits & MTT_HOME_POS_VALID;
 		current_status_flags.condition_global_position_valid = test->condition_bits & MTT_GLOBAL_POS_VALID;
+		current_status_flags.condition_auto_mission_available = true;
 
 		// Attempt transition
 		transition_result_t result = main_state_transition(&current_vehicle_status, test->to_state, main_state_prev,
@@ -472,46 +477,45 @@ bool StateMachineHelperTest::mainStateTransitionTest(void)
 	return true;
 }
 
-bool StateMachineHelperTest::isSafeTest(void)
+bool StateMachineHelperTest::isSafeTest()
 {
-	struct vehicle_status_s current_state;
-	struct safety_s safety;
-	struct actuator_armed_s armed;
+	struct safety_s safety = {};
+	struct actuator_armed_s armed = {};
 
 	armed.armed = false;
 	armed.lockdown = false;
 	safety.safety_switch_available = true;
 	safety.safety_off = false;
-	ut_compare("is safe: not armed", is_safe(&current_state, &safety, &armed), true);
+	ut_compare("is safe: not armed", is_safe(&safety, &armed), true);
 
 	armed.armed = false;
 	armed.lockdown = true;
 	safety.safety_switch_available = true;
 	safety.safety_off = true;
-	ut_compare("is safe: software lockdown", is_safe(&current_state, &safety, &armed), true);
+	ut_compare("is safe: software lockdown", is_safe(&safety, &armed), true);
 
 	armed.armed = true;
 	armed.lockdown = false;
 	safety.safety_switch_available = true;
 	safety.safety_off = true;
-	ut_compare("not safe: safety off", is_safe(&current_state, &safety, &armed), false);
+	ut_compare("not safe: safety off", is_safe(&safety, &armed), false);
 
 	armed.armed = true;
 	armed.lockdown = false;
 	safety.safety_switch_available = true;
 	safety.safety_off = false;
-	ut_compare("is safe: safety off", is_safe(&current_state, &safety, &armed), true);
+	ut_compare("is safe: safety off", is_safe(&safety, &armed), true);
 
 	armed.armed = true;
 	armed.lockdown = false;
 	safety.safety_switch_available = false;
 	safety.safety_off = false;
-	ut_compare("not safe: no safety switch", is_safe(&current_state, &safety, &armed), false);
+	ut_compare("not safe: no safety switch", is_safe(&safety, &armed), false);
 
 	return true;
 }
 
-bool StateMachineHelperTest::run_tests(void)
+bool StateMachineHelperTest::run_tests()
 {
 	ut_run_test(armingStateTransitionTest);
 	ut_run_test(mainStateTransitionTest);

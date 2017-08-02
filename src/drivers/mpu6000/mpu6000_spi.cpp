@@ -64,21 +64,34 @@
 #define DIR_READ			0x80
 #define DIR_WRITE			0x00
 
-#if PX4_SPIDEV_MPU
-#ifdef PX4_SPI_BUS_EXT
-#define EXTERNAL_BUS PX4_SPI_BUS_EXT
-#else
-#define EXTERNAL_BUS 0
-#endif
+#if defined(PX4_SPIDEV_MPU) || defined(PX4_SPIDEV_ICM_20602) || defined(PX4_SPIDEV_ICM_20689)
+#  ifdef PX4_SPI_BUS_EXT
+#    define EXTERNAL_BUS PX4_SPI_BUS_EXT
+#  else
+#    define EXTERNAL_BUS 0
+#  endif
 
-/*
-  The MPU6000 can only handle high SPI bus speeds on the sensor and
-  interrupt status registers. All other registers have a maximum 1MHz
-  SPI speed
-
- */
-#define MPU6000_LOW_SPI_BUS_SPEED	1000*1000
-#define MPU6000_HIGH_SPI_BUS_SPEED	11*1000*1000 /* will be rounded to 10.4 MHz, within margins for MPU6K */
+/* The MPU6000 can only handle high SPI bus speeds of 20Mhz on the sensor and
+* interrupt status registers. All other registers have a maximum 1MHz
+* SPI speed
+*
+* The ICM parts are not rated as high.
+*
+* The Actual Value will be rounded down by the spi driver.
+*          168 Mhz CPU         180 Mhz CPU
+* Selected ------------actual---------------
+* 20 Mhz   10.5     Mhz         11.250   Mhz
+* 10 Mhz   5.250    Mhz         5.625    Mhz
+* 8  Mhz   5.250    Mhz         5.625    Mhz
+* 1  Mhz   0.703125 Mhz         0.65625  Mhz
+*
+*/
+#define MPU6000_LOW_SPI_BUS_SPEED    1000*1000
+#define MPU6000_HIGH_SPI_BUS_SPEED   20*1000*1000
+#define ICM20608_HIGH_SPI_BUS_SPEED  8*1000*1000
+#define ICM20689_HIGH_SPI_BUS_SPEED  8*1000*1000
+#define ICM20602_HIGH_SPI_BUS_SPEED 10*1000*1000
+#define UNKNOWN_HIGH_SPI_BUS_SPEED   8*1000*1000 // Use the minimum
 
 
 device::Device *MPU6000_SPI_interface(int bus, int device_type, bool external_bus);
@@ -103,36 +116,91 @@ private:
 	int _device_type;
 	/* Helper to set the desired speed and isolate the register on return */
 
+	int _max_frequency;
 	void set_bus_frequency(unsigned &reg_speed_reg_out);
 };
 
 device::Device *
 MPU6000_SPI_interface(int bus, int device_type, bool external_bus)
 {
-	spi_dev_e cs = SPIDEV_NONE;
+	int cs = SPIDEV_NONE;
 	device::Device *interface = nullptr;
 
 	if (external_bus) {
-#ifdef PX4_SPI_BUS_EXT
-#  if defined(PX4_SPIDEV_EXT_ICM)
-		cs = (spi_dev_e)(device_type == 6000 ? PX4_SPIDEV_EXT_MPU : PX4_SPIDEV_EXT_ICM);
-#   else
-		cs = (spi_dev_e) PX4_SPIDEV_EXT_MPU;
+
+#if defined(PX4_SPI_BUS_EXT) || defined(PX4_SPI_BUS_EXTERNAL)
+
+		switch (device_type) {
+
+		case 6000:
+#  if defined(PX4_SPIDEV_EXT_MPU)
+			cs  = PX4_SPIDEV_EXT_MPU;
+# endif
+			break;
+
+		case 20602:
+#  if defined(PX4_SPIDEV_ICM_20602_EXT)
+			cs = PX4_SPIDEV_ICM_20602_EXT;
 #  endif
+			break;
+
+		case 20608:
+#  if defined(PX4_SPIDEV_EXT_ICM)
+			cs = PX4_SPIDEV_EXT_ICM;
+#  elif defined(PX4_SPIDEV_ICM_20608_EXT)
+			cs = PX4_SPIDEV_ICM_20608_EXT;
+#  endif
+			break;
+
+		case 20689:
+#  if defined(PX4_SPIDEV_ICM_20689_EXT)
+			cs = PX4_SPIDEV_ICM_20689_EXT;
+#  endif
+			break;
+
+		default:
+			break;
+		}
+
 #endif
 
 	} else {
 
-#if defined(PX4_SPIDEV_ICM)
-		cs = (spi_dev_e)(device_type == 6000 ? PX4_SPIDEV_MPU : PX4_SPIDEV_ICM);
-#else
-		cs = (spi_dev_e) PX4_SPIDEV_MPU;
+		switch (device_type) {
+
+		case 6000:
+#if defined(PX4_SPIDEV_MPU)
+			cs = PX4_SPIDEV_MPU;
 #endif
+			break;
+
+		case 20602:
+#if defined(PX4_SPIDEV_ICM_20602)
+			cs = PX4_SPIDEV_ICM_20602;
+#endif
+			break;
+
+		case 20608:
+#if defined(PX4_SPIDEV_ICM)
+			cs = PX4_SPIDEV_ICM;
+#elif defined(PX4_SPIDEV_ICM_20608)
+			cs = PX4_SPIDEV_ICM_20608;
+#endif
+			break;
+
+		case 20689:
+#  if defined(PX4_SPIDEV_ICM_20689)
+			cs = PX4_SPIDEV_ICM_20689;
+#  endif
+
+		default:
+			break;
+		}
 	}
 
 	if (cs != SPIDEV_NONE) {
 
-		interface = new MPU6000_SPI(bus, cs, device_type);
+		interface = new MPU6000_SPI(bus, (spi_dev_e) cs, device_type);
 	}
 
 	return interface;
@@ -197,9 +265,9 @@ MPU6000_SPI::set_bus_frequency(unsigned &reg_speed)
 {
 	/* Set the desired speed */
 
-	set_frequency(MPU6000_IS_HIGH_SPEED(reg_speed) ? MPU6000_HIGH_SPI_BUS_SPEED : MPU6000_LOW_SPI_BUS_SPEED);
+	set_frequency(MPU6000_IS_HIGH_SPEED(reg_speed) ? _max_frequency : MPU6000_LOW_SPI_BUS_SPEED);
 
-	/* Isoolate the register on return */
+	/* Isolate the register on return */
 
 	reg_speed = MPU6000_REG(reg_speed);
 }
@@ -273,9 +341,33 @@ int
 MPU6000_SPI::probe()
 {
 	uint8_t whoami = 0;
-	uint8_t expected = _device_type == 6000 ? MPU_WHOAMI_6000 : ICM_WHOAMI_20608;
-	return (read(MPUREG_WHOAMI, &whoami, 1) > 0 && (whoami == expected)) ? 0 : -EIO;
+	uint8_t expected = MPU_WHOAMI_6000;
+	_max_frequency = UNKNOWN_HIGH_SPI_BUS_SPEED;
 
+	switch (_device_type) {
+
+	default:
+	case 6000:
+		_max_frequency = MPU6000_HIGH_SPI_BUS_SPEED;
+		break;
+
+	case 20602:
+		expected = ICM_WHOAMI_20602;
+		_max_frequency = ICM20602_HIGH_SPI_BUS_SPEED;
+		break;
+
+	case 20608:
+		expected = ICM_WHOAMI_20608;
+		_max_frequency = ICM20608_HIGH_SPI_BUS_SPEED;
+		break;
+
+	case 20689:
+		expected = ICM_WHOAMI_20689;
+		_max_frequency = ICM20689_HIGH_SPI_BUS_SPEED;
+		break;
+	}
+
+	return (read(MPUREG_WHOAMI, &whoami, 1) > 0 && (whoami == expected)) ? 0 : -EIO;
 }
 
 #endif // PX4_SPIDEV_MPU

@@ -53,11 +53,13 @@
 #include <poll.h>
 #include <fcntl.h>
 #include <unistd.h>
+
+#include <px4_tasks.h>
 #include <systemlib/err.h>
-#include <systemlib/systemlib.h>
 #include <termios.h>
 #include <drivers/drv_hrt.h>
 #include <uORB/topics/sensor_baro.h>
+#include <math.h>	// NAN
 
 #include "sPort_data.h"
 #include "frsky_data.h"
@@ -462,6 +464,8 @@ static int frsky_telemetry_thread_main(int argc, char *argv[])
 
 				}
 
+			/* FALLTHROUGH */
+
 			case SMARTPORT_POLL_8:
 
 				/* report nav_state as DIY_NAVSTATE 2Hz */
@@ -587,7 +591,7 @@ int frsky_telemetry_main(int argc, char *argv[])
 		frsky_task = px4_task_spawn_cmd("frsky_telemetry",
 						SCHED_DEFAULT,
 						200,
-						1100,
+						1268,
 						frsky_telemetry_thread_main,
 						(char *const *)argv);
 

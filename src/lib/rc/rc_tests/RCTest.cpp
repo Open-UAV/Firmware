@@ -24,18 +24,21 @@ extern "C" __EXPORT int rc_tests_main(int argc, char *argv[]);
 class RCTest : public UnitTest
 {
 public:
-	virtual bool run_tests(void);
+	virtual bool run_tests();
 
 private:
-	bool dsmTest();
+	bool dsmTest(const char *filepath, unsigned expected_chancount, unsigned expected_dropcount, unsigned chan0);
+	bool dsmTest10Ch();
+	bool dsmTest12Ch();
 	bool sbus2Test();
 	bool st24Test();
 	bool sumdTest();
 };
 
-bool RCTest::run_tests(void)
+bool RCTest::run_tests()
 {
-	ut_run_test(dsmTest);
+	ut_run_test(dsmTest10Ch);
+	ut_run_test(dsmTest12Ch);
 	ut_run_test(sbus2Test);
 	ut_run_test(st24Test);
 	ut_run_test(sumdTest);
@@ -43,16 +46,24 @@ bool RCTest::run_tests(void)
 	return (_tests_failed == 0);
 }
 
-bool RCTest::dsmTest(void)
+bool RCTest::dsmTest10Ch()
 {
+	return dsmTest(TEST_DATA_PATH "dsm_x_data.txt", 10, 6, 1500);
+}
 
-	const char *filepath = TEST_DATA_PATH "dsm_x_data.txt";
+bool RCTest::dsmTest12Ch()
+{
+	return dsmTest(TEST_DATA_PATH "dsm_x_dx9_data.txt", 12, 6, 1500);
+}
+
+bool RCTest::dsmTest(const char *filepath, unsigned expected_chancount, unsigned expected_dropcount, unsigned chan0)
+{
 
 	FILE *fp;
 	fp = fopen(filepath, "rt");
 
 	ut_test(fp != nullptr);
-	//warnx("loading data from: %s", filepath);
+	//PX4_INFO("loading data from: %s", filepath);
 
 	float f;
 	unsigned x;
@@ -65,7 +76,7 @@ bool RCTest::dsmTest(void)
 	}
 
 	// Init the parser
-	uint8_t frame[20];
+	uint8_t frame[30];
 	uint16_t rc_values[18];
 	uint16_t num_values;
 	bool dsm_11_bit;
@@ -75,9 +86,14 @@ bool RCTest::dsmTest(void)
 	int rate_limiter = 0;
 	unsigned last_drop = 0;
 
+	dsm_proto_init();
+
 	while (EOF != (ret = fscanf(fp, "%f,%x,,", &f, &x))) {
 
-		ut_test(ret > 0);
+		if (ret <= 0) {
+			fclose(fp);
+			ut_test(ret > 0);
+		}
 
 		frame[0] = x;
 		unsigned len = 1;
@@ -87,27 +103,35 @@ bool RCTest::dsmTest(void)
 					&dsm_11_bit, &dsm_frame_drops, max_channels);
 
 		if (result) {
-			//warnx("decoded packet with %d channels and %s encoding:", num_values, (dsm_11_bit) ? "11 bit" : "10 bit");
+			ut_compare("num_values == expected_chancount", num_values, expected_chancount);
+
+			ut_test(abs((int)chan0 - (int)rc_values[0]) < 30);
+
+			//PX4_INFO("decoded packet with %d channels and %s encoding:", num_values, (dsm_11_bit) ? "11 bit" : "10 bit");
 
 			for (unsigned i = 0; i < num_values; i++) {
-				//printf("chan #%u:\t%d\n", i, (int)rc_values[i]);
+				//PX4_INFO("chan #%u:\t%d", i, (int)rc_values[i]);
 			}
 		}
 
 		if (last_drop != (dsm_frame_drops)) {
-			//warnx("frame dropped, now #%d", (dsm_frame_drops));
+			PX4_INFO("frame dropped, now #%d", (dsm_frame_drops));
 			last_drop = dsm_frame_drops;
 		}
 
 		rate_limiter++;
 	}
 
+	fclose(fp);
+
 	ut_test(ret == EOF);
+	PX4_INFO("drop: %d", (int)last_drop);
+	ut_test(last_drop == expected_dropcount);
 
 	return true;
 }
 
-bool RCTest::sbus2Test(void)
+bool RCTest::sbus2Test()
 {
 	const char *filepath = TEST_DATA_PATH "sbus2_r7008SB.txt";
 
@@ -154,7 +178,10 @@ bool RCTest::sbus2Test(void)
 
 	while (EOF != (ret = fscanf(fp, "%f,%x,,", &f, &x))) {
 
-		ut_test(ret > 0);
+		if (ret <= 0) {
+			fclose(fp);
+			ut_test(ret > 0);
+		}
 
 		frame[0] = x;
 		unsigned len = 1;
@@ -173,7 +200,7 @@ bool RCTest::sbus2Test(void)
 		// }
 
 		if (last_drop != (sbus_frame_drops + sbus_frame_resets)) {
-			warnx("frame dropped, now #%d", (sbus_frame_drops + sbus_frame_resets));
+			PX4_WARN("frame dropped, now #%d", (sbus_frame_drops + sbus_frame_resets));
 			last_drop = sbus_frame_drops + sbus_frame_resets;
 		}
 
@@ -185,7 +212,7 @@ bool RCTest::sbus2Test(void)
 	return true;
 }
 
-bool RCTest::st24Test(void)
+bool RCTest::st24Test()
 {
 	const char *filepath = TEST_DATA_PATH "st24_data.txt";
 
@@ -209,7 +236,11 @@ bool RCTest::st24Test(void)
 	float last_time = 0;
 
 	while (EOF != (ret = fscanf(fp, "%f,%x,,", &f, &x))) {
-		ut_test(ret > 0);
+
+		if (ret <= 0) {
+			fclose(fp);
+			ut_test(ret > 0);
+		}
 
 		if (((f - last_time) * 1000 * 1000) > 3000) {
 			// warnx("FRAME RESET\n\n");
@@ -242,7 +273,7 @@ bool RCTest::st24Test(void)
 	return true;
 }
 
-bool RCTest::sumdTest(void)
+bool RCTest::sumdTest()
 {
 	const char *filepath = TEST_DATA_PATH "sumd_data.txt";
 
@@ -266,7 +297,11 @@ bool RCTest::sumdTest(void)
 	float last_time = 0;
 
 	while (EOF != (ret = fscanf(fp, "%f,%x,,", &f, &x))) {
-		ut_test(ret > 0);
+
+		if (ret <= 0) {
+			fclose(fp);
+			ut_test(ret > 0);
+		}
 
 		if (((f - last_time) * 1000 * 1000) > 3000) {
 			// warnx("FRAME RESET\n\n");
@@ -283,14 +318,15 @@ bool RCTest::sumdTest(void)
 		uint8_t rx_count;
 		uint16_t channel_count;
 		uint16_t channels[32];
+		bool sumd_failsafe;
 
 
-		if (!sumd_decode(b, &rssi, &rx_count, &channel_count, channels, 32)) {
-			//warnx("decoded: %u channels (converted to PPM range)", (unsigned)channel_count);
+		if (!sumd_decode(b, &rssi, &rx_count, &channel_count, channels, 32, &sumd_failsafe)) {
+			//PX4_INFO("decoded: %u channels (converted to PPM range)", (unsigned)channel_count);
 
 			for (unsigned i = 0; i < channel_count; i++) {
 				//int16_t val = channels[i];
-				//warnx("channel %u: %d 0x%03X", i, static_cast<int>(val), static_cast<int>(val));
+				//PX4_INFO("channel %u: %d 0x%03X", i, static_cast<int>(val), static_cast<int>(val));
 			}
 		}
 	}

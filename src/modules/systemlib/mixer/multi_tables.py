@@ -77,10 +77,10 @@ quad_plus = [
 ]
 
 quad_deadcat = [
-    [  63, CCW, 1.0],
-    [-135, CCW, 0.964],
-    [ -63, CW, 1.0],
-    [ 135, CW, 0.964],
+    [  60, CCW, 1.0],
+    [-125, CCW, 0.92],
+    [ -60, CW, 1.0],
+    [ 125, CW, 0.92],
 ]
 
 quad_v = [
@@ -95,6 +95,13 @@ quad_wide = [
     [ -129, CCW],
     [  -68, CW],
     [  129, CW],
+]
+
+quad_s250aq = [
+    [   59, CCW, 1.0 ],
+    [ -139, CCW, 0.67],
+    [  -59,  CW, 1.0 ],
+    [  139,  CW, 0.67],
 ]
 
 hex_x = [
@@ -188,8 +195,25 @@ tri_y = [
     [ 180, 0.0],
 ]
 
+dodeca_top_cox = [
+    [  90, CW],
+    [ -90, CCW],
+    [ -30, CW],
+    [ 150, CCW],
+    [  30, CCW],
+    [-150, CW],                                          
+]
 
-tables = [quad_x, quad_h, quad_plus, quad_v, quad_wide, quad_deadcat, hex_x, hex_plus, hex_cox, hex_t, octa_x, octa_plus, octa_cox, octa_cox_wide, twin_engine, tri_y]
+dodeca_bottom_cox = [
+    [  90, CCW],
+    [ -90, CW],
+    [ -30, CCW],
+    [ 150, CW],
+    [  30, CW],
+    [-150, CCW],
+]
+
+tables = [quad_x, quad_h, quad_plus, quad_v, quad_wide, quad_s250aq, quad_deadcat, hex_x, hex_plus, hex_cox, hex_t, octa_x, octa_plus, octa_cox, octa_cox_wide, twin_engine, tri_y, dodeca_top_cox, dodeca_bottom_cox]
 
 def variableName(variable):
     for variableName, value in list(globals().items()):

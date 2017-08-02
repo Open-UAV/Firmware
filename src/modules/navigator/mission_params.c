@@ -55,21 +55,22 @@
  * @increment 0.5
  * @group Mission
  */
-PARAM_DEFINE_FLOAT(MIS_TAKEOFF_ALT, 10.0f);
+PARAM_DEFINE_FLOAT(MIS_TAKEOFF_ALT, 2.5f);
 
 /**
  * Minimum Loiter altitude
  *
  * This is the minimum altitude the system will always obey. The intent is to stay out of ground effect.
+ * set to -1, if there shouldn't be a minimum loiter altitude
  *
  * @unit m
- * @min 0
+ * @min -1
  * @max 80
  * @decimal 1
  * @increment 0.5
  * @group Mission
  */
-PARAM_DEFINE_FLOAT(MIS_LTRMIN_ALT, 1.2f);
+PARAM_DEFINE_FLOAT(MIS_LTRMIN_ALT, -1.0f);
 
 /**
  * Persistent onboard mission storage
@@ -87,7 +88,7 @@ PARAM_DEFINE_INT32(MIS_ONBOARD_EN, 1);
  *
  * Failsafe check to prevent running mission stored from previous flight at a new takeoff location.
  * Set a value of zero or less to disable. The mission will not be started if the current
- * waypoint is more distant than MIS_DIS_1WP from the current position.
+ * waypoint is more distant than MIS_DIS_1WP from the home position.
  *
  * @unit m
  * @min 0
@@ -166,7 +167,15 @@ PARAM_DEFINE_FLOAT(MIS_YAW_ERR, 12.0f);
 PARAM_DEFINE_INT32(VT_WV_LND_EN, 0);
 
 /**
- * Weather-vane mode for loiter mode
+ * Enable weather-vane mode takeoff for missions
+ *
+ * @boolean
+ * @group Mission
+ */
+PARAM_DEFINE_INT32(VT_WV_TKO_EN, 0);
+
+/**
+ * Weather-vane mode for loiter
  *
  * @boolean
  * @group Mission

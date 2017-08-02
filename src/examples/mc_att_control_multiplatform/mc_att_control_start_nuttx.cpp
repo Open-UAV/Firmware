@@ -39,7 +39,7 @@
 #include <string.h>
 #include <cstdlib>
 #include <systemlib/err.h>
-#include <systemlib/systemlib.h>
+#include <px4_tasks.h>
 
 extern bool mc_att_control_thread_running;
 int mc_att_control_daemon_task;             /**< Handle of deamon task / thread */
@@ -74,7 +74,7 @@ int mc_att_control_m_main(int argc, char *argv[])
 					     SCHED_PRIORITY_MAX - 5,
 					     1900,
 					     mc_att_control_start_main,
-					     (argv) ? (char *const *)&argv[2] : (char *const *)NULL);
+					     (argv) ? (char *const *)&argv[2] : (char *const *)nullptr);
 
 		return 0;
 	}

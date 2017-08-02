@@ -47,7 +47,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
-#include <drivers/drv_led.h>
+#include <drivers/drv_board_led.h>
 
 #include "simulator.h"
 
@@ -55,7 +55,7 @@ using namespace simulator;
 
 static px4_task_t g_sim_task = -1;
 
-Simulator *Simulator::_instance = NULL;
+Simulator *Simulator::_instance = nullptr;
 
 Simulator *Simulator::getInstance()
 {
@@ -198,7 +198,7 @@ extern "C" {
 								argv);
 
 				// now wait for the command to complete
-				while (true) {
+				while (!px4_exit_requested()) {
 					if (Simulator::getInstance() && Simulator::getInstance()->isInitialized()) {
 						break;
 

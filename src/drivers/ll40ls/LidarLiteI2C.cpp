@@ -40,6 +40,7 @@
  */
 
 #include "LidarLiteI2C.h"
+#include <px4_defines.h>
 #include <semaphore.h>
 #include <fcntl.h>
 #include <errno.h>
@@ -47,12 +48,6 @@
 #include <string.h>
 #include <stdio.h>
 #include <drivers/drv_hrt.h>
-
-/* oddly, ERROR is not defined for c++ */
-#ifdef ERROR
-# undef ERROR
-#endif
-static const int ERROR = -1;
 
 LidarLiteI2C::LidarLiteI2C(int bus, const char *path, int address) :
 	I2C("LL40LS", path, bus, address, 100000),
@@ -65,7 +60,6 @@ LidarLiteI2C::LidarLiteI2C(int bus, const char *path, int address) :
 	_distance_sensor_topic(nullptr),
 	_sample_perf(perf_alloc(PC_ELAPSED, "ll40ls_i2c_read")),
 	_comms_errors(perf_alloc(PC_COUNT, "ll40ls_i2c_comms_errors")),
-	_buffer_overflows(perf_alloc(PC_COUNT, "ll40ls_buffer_i2c_overflows")),
 	_sensor_resets(perf_alloc(PC_COUNT, "ll40ls_i2c_resets")),
 	_sensor_zero_resets(perf_alloc(PC_COUNT, "ll40ls_i2c_zero_resets")),
 	_last_distance(0),
@@ -103,14 +97,13 @@ LidarLiteI2C::~LidarLiteI2C()
 	// free perf counters
 	perf_free(_sample_perf);
 	perf_free(_comms_errors);
-	perf_free(_buffer_overflows);
 	perf_free(_sensor_resets);
 	perf_free(_sensor_zero_resets);
 }
 
 int LidarLiteI2C::init()
 {
-	int ret = ERROR;
+	int ret = PX4_ERROR;
 
 	/* do I2C init (and probe) first */
 	if (I2C::init() != OK) {
@@ -470,9 +463,7 @@ int LidarLiteI2C::collect()
 		orb_publish(ORB_ID(distance_sensor), _distance_sensor_topic, &report);
 	}
 
-	if (_reports->force(&report)) {
-		perf_count(_buffer_overflows);
-	}
+	_reports->force(&report);
 
 	/* notify anyone waiting for data */
 	poll_notify(POLLIN);
@@ -566,11 +557,15 @@ void LidarLiteI2C::print_info()
 {
 	perf_print_counter(_sample_perf);
 	perf_print_counter(_comms_errors);
-	perf_print_counter(_buffer_overflows);
 	perf_print_counter(_sensor_resets);
 	perf_print_counter(_sensor_zero_resets);
 	printf("poll interval:  %u ticks\n", getMeasureTicks());
 	_reports->print_info("report queue");
 	printf("distance: %ucm (0x%04x)\n",
 	       (unsigned)_last_distance, (unsigned)_last_distance);
+}
+
+const char *LidarLiteI2C::get_dev_name()
+{
+	return get_devname();
 }

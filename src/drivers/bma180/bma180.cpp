@@ -37,6 +37,7 @@
  */
 
 #include <px4_config.h>
+#include <px4_defines.h>
 
 #include <sys/types.h>
 #include <stdint.h>
@@ -67,12 +68,6 @@
 
 #define ACCEL_DEVICE_PATH	"/dev/bma180"
 
-
-/* oddly, ERROR is not defined for c++ */
-#ifdef ERROR
-# undef ERROR
-#endif
-static const int ERROR = -1;
 
 #define DIR_READ			(1<<7)
 #define DIR_WRITE			(0<<7)
@@ -246,6 +241,8 @@ BMA180::BMA180(int bus, spi_dev_e device) :
 	_current_range(0),
 	_sample_perf(perf_alloc(PC_ELAPSED, "bma180_read"))
 {
+	_device_id.devid_s.devtype = DRV_ACC_DEVTYPE_BMA180;
+
 	// enable debug() calls
 	_debug_enabled = true;
 
@@ -275,7 +272,7 @@ BMA180::~BMA180()
 int
 BMA180::init()
 {
-	int ret = ERROR;
+	int ret = PX4_ERROR;
 
 	/* do SPI init (and probe) first */
 	if (SPI::init() != OK) {
@@ -321,7 +318,7 @@ BMA180::init()
 		ret = OK;
 
 	} else {
-		ret = ERROR;
+		ret = PX4_ERROR;
 	}
 
 	_class_instance = register_class_devname(ACCEL_DEVICE_PATH);

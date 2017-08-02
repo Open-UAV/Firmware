@@ -72,6 +72,12 @@ SimpleMixer::~SimpleMixer()
 	}
 }
 
+unsigned SimpleMixer::set_trim(float trim)
+{
+	_pinfo->output_scaler.offset = trim;
+	return 1;
+}
+
 int
 SimpleMixer::parse_output_scaler(const char *buf, unsigned &buflen, mixer_scaler_s &scaler)
 {
@@ -154,6 +160,11 @@ SimpleMixer::from_text(Mixer::ControlCallback control_cb, uintptr_t cb_handle, c
 	unsigned inputs;
 	int used;
 	const char *end = buf + buflen;
+
+	/* enforce that the mixer ends with a new line */
+	if (!string_well_formed(buf, buflen)) {
+		return nullptr;
+	}
 
 	/* get the base info for the mixer */
 	if (sscanf(buf, "M: %u%n", &inputs, &used) != 1) {
@@ -300,6 +311,12 @@ SimpleMixer::mix(float *outputs, unsigned space, uint16_t *status_reg)
 
 	*outputs = scale(_pinfo->output_scaler, sum);
 	return 1;
+}
+
+uint16_t
+SimpleMixer::get_saturation_status()
+{
+	return 0;
 }
 
 void
