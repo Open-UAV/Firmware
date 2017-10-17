@@ -18,10 +18,18 @@ def pos_cb(msg):
     cur_pose = msg
 
 #Setup
-NUM_UAV = 3
-launchfile = "posix_sitl_two.launch"
+
+import sys
+NUM_UAV = sys.argv[1]
+process = subprocess.Popen(["/bin/bash","/root/src/Firmware/Tools/swarm.sh",NUM_UAV],stdout=subprocess.PIPE)
+process.wait()
+for line in process.stdout:
+        print line
+launchfile = "posix_sitl_multi_tmp.launch"
 subprocess.Popen("roscore")
 print ("Roscore launched!")
+
+
 
 # Launch the simulation with the given launchfile name
 rospy.init_node('multi', anonymous=True)

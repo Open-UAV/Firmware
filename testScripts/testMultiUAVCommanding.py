@@ -56,7 +56,7 @@ def pos_cb(msg, args):
 def mavrosTopicStringRoot(uavID=0):
     return ('mavros' + str(uavID+1))
 
-rospy.init_node('multi-', anonymous=True)
+rospy.init_node('multicommand', anonymous=True)
 def formation_cb(msg,args):
 	global next_pos
 	global cur_pos
@@ -99,7 +99,8 @@ while not rospy.is_shutdown():
 
 	 	if waypointIndex[uavID] > NUM_STPNTS-1:
                 	waypointIndex[uavID] = NUM_STPNTS-1
-                	sim_ctr += 1
+                	print uavID, sim_ctr
+			sim_ctr += 1
 	
     	 	local_pos[uavID].publish(next_pos[uavID])
     rate.sleep()
