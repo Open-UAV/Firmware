@@ -8,6 +8,10 @@ do
 	cp /root/src/Firmware/posix-configs/SITL/init/lpe/f450-1 /root/src/Firmware/posix-configs/SITL/init/lpe/f450-tmp-$NUM
 	sed -i "s/146/$PORT/g" /root/src/Firmware/posix-configs/SITL/init/lpe/f450-tmp-$NUM
 	sed -i "3,4s/2/$NUM/g" /root/src/Firmware/posix-configs/SITL/init/lpe/f450-tmp-$NUM
+	sed -i "s/f450-1/f450-tmp-$NUM/g" /root/src/Firmware/Tools/sitl_gazebo/models/f450-tmp-$NUM/f450-tmp-$NUM.sdf
+        sed -i "s/uav_camera/uav_$NUM\_camera/g" /root/src/Firmware/Tools/sitl_gazebo/models/f450-tmp-$NUM/f450-tmp-$NUM.sdf
+ 
+
 done
 touch  /root/src/Firmware/launch/posix_sitl_multi_tmp.launch
 
