@@ -1,13 +1,15 @@
-OpenUAV flight controller and simulation stack, powered by http://px4.io, http://www.ros.org/, and http://gazebosim.org
 
-See http://openuav.us for miscellaneous information on the project. 
+This is based on the PX4 autopilot stack, with additional contributions for swarms, containerized for deployment on the cloud. 
 
-To install the software stack on a fresh Ubuntu 14.04 machine, follow the instructions at http://openuav.us/wiki/index.php/Software_Stack#INSTALLATION
+See http://openuav.us for more information. 
+
+Acknowledgements:
+NSF grant CNS-1521617
+USDA grant 2015-67021-23857
+GRASP Lab, University of Pennsylvania
+Penn Aerial Robotics
 
 
-[![UPenn/NSF PX4 Simulation Stack](https://www.dropbox.com/s/y6fetkbs5utv9kc/px4-sim-splash.jpg?dl=1)](https://www.youtube.com/watch?v=JhK4x5JImLA)
-
-[![UPenn/NSF Pixhawk/PX4-based UAV](https://www.dropbox.com/s/xf39b8pcml4bh8z/upenn-f450-mocap-trial.jpg?dl=1)](https://www.youtube.com/watch?v=b0AhAHZMD1w)
 
 FROM UPSTREAM
 ## PX4 Pro Drone Autopilot ##
