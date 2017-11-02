@@ -1,5 +1,5 @@
 
-This is based on the PX4 autopilot stack, with additional contributions for swarms, containerized for deployment on the cloud. 
+This is based on the PX4 autopilot stack, with additional contributions for swarms, and tools for deployment on the cloud. 
 
 See http://openuav.us for more information. 
 
