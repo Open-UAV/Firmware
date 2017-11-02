@@ -3,7 +3,7 @@ This is based on the PX4 autopilot stack, with additional contributions for swar
 
 See http://openuav.us for more information. 
 
-- Acknowledgements:
+### Acknowledgements:
 - NSF grant CNS-1521617
 - USDA grant 2015-67021-23857
 - GRASP Lab, University of Pennsylvania
