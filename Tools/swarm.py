@@ -2,12 +2,8 @@
 import sys
 import os
 
-
 def replaceInFile(orig, repl, filename):
-    for line in fileinput.input([filename], inplace=True):
-        print(line.replace(orig, repl))
-
-
+    os.system('sed - i "s/' + orig + '/' +repl + '/g" ' + filename)
 
 NUM_UAVs = int(sys.argv[1])
 PX4_HOME = '/home/nsf/open-uav'
@@ -23,22 +19,21 @@ os.system(
 os.system(
     "mv $PX4_HOME/Firmware/Tools/sitl_gazebo/models/f450-tmp-$NUM/f450-1.sdf $PX4_HOME/Firmware/Tools/sitl_gazebo/models/f450-tmp-$NUM/f450-tmp-" + uav_str + ".sdf")
 
-replaceInFile('146', PORT, '$PX4_HOME/Firmware/Tools/sitl_gazebo/models/f450-tmp-$NUM/f450-tmp-" + NUM_UAVs + ".sdf')
+replaceInFile(str(mavlink_port), str(mavlink_port+100+NUM), PX4_HOME + '/Firmware/Tools/sitl_gazebo/models/f450-tmp-$NUM/f450-tmp-" + NUM_UAVs + ".sdf')
 os.system(
-    'cp $PX4_HOME/Firmware/posix-configs/SITL/init/lpe/f450-1 $PX4_HOME/Firmware/posix-configs/SITL/init/lpe/f450-tmp-' +
+    'cp '+ PX4_HOME + '/Firmware/posix-configs/SITL/init/lpe/f450-1 $PX4_HOME/Firmware/posix-configs/SITL/init/lpe/f450-tmp-' +
     uav_str)
 
-replaceInFile('146', PORT, '$PX4_HOME/Firmware/posix-configs/SITL/init/lpe/f450-tmp-$NUM')
-
-replaceInFile('f450-1', 'f450-tmp-$NUM', '$PX4_HOME/Firmware/Tools/sitl_gazebo/models/f450-tmp-$NUM/f450-tmp-$NUM.sdf')
+replaceInFile(str(mavlink_port), str(mavlink_port+100+NUM), PX4_HOME + '/Firmware/posix-configs/SITL/init/lpe/f450-tmp-' + uav_str)
+replaceInFile('f450-1', 'f450-tmp-' + uav_str, PX4_HOME + '/Firmware/Tools/sitl_gazebo/models/f450-tmp-$NUM/f450-tmp-' + uav_str)
 replaceInFile('uav_camera',
-              'uav_$NUM_camera',
+              'uav_' + uav_str + '_camera',
               PX4_HOME + '/Firmware/Tools/sitl_gazebo/models/f450-tmp-' + uav_str + '/f450-tmp-' + uav_str + '.sdf')
 
 launch_file = '$PX4_HOME/Firmware/launch/posix_sitl_multi_tmp.launch'
 
-SOURCE = "$PX4_HOME/Firmware/launch/posix_sitl_multibase.launch"
-DEST = "$PX4_HOME/Firmware/launch/posix_sitl_multi_tmp.launch"
+SOURCE = PX4_HOME + '/Firmware/launch/posix_sitl_multibase.launch'
+DEST = PX4_HOME + '/Firmware/launch/posix_sitl_multi_tmp.launch'
 
 file_block = ''
 for ind in range(1, NUM_UAVs):
