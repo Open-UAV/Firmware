@@ -3,8 +3,10 @@ import sys
 import os
 
 
-def replaceInFile(orig, new, filename):
-    pass
+def replaceInFile(orig, repl, filename):
+    for line in fileinput.input([filename], inplace=True):
+        print(line.replace(orig, repl))
+
 
 
 NUM_UAVs = int(sys.argv[1])
@@ -27,6 +29,7 @@ os.system(
     uav_str)
 
 replaceInFile('146', PORT, '$PX4_HOME/Firmware/posix-configs/SITL/init/lpe/f450-tmp-$NUM')
+
 replaceInFile('f450-1', 'f450-tmp-$NUM', '$PX4_HOME/Firmware/Tools/sitl_gazebo/models/f450-tmp-$NUM/f450-tmp-$NUM.sdf')
 replaceInFile('uav_camera',
               'uav_$NUM_camera',
