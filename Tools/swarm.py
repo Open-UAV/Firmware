@@ -18,10 +18,10 @@ for NUM in range(1, NUM_UAVs):
     # <param name="fcu_url" value="udp://:mavlink_onboard_remote@localhost:mavlink_onboard_local"/>
     # mavlink stream -r 50 -s POSITION_TARGET_LOCAL_NED -u mavlink_start_port
 
-    mavlink_onboard_remote = 14140
-    mavlink_start_port = 14156
-    mavlink_onboard_local = 14157
-    simulator_udp_port = 14160
+    mavlink_onboard_remote = 14640
+    mavlink_start_port = 14656
+    mavlink_onboard_local = 14657
+    simulator_udp_port = 14660
 
     uav_str = str(NUM)
     print(uav_str)
@@ -32,10 +32,14 @@ for NUM in range(1, NUM_UAVs):
 
     replaceInFile(str(simulator_udp_port), str(simulator_udp_port+100*NUM), PX4_HOME + '/Firmware/Tools/sitl_gazebo/models/f450-tmp-' + uav_str +'/f450-tmp-' + uav_str + '.sdf')
     os.system(
-        'cp '+ PX4_HOME + '/Firmware/posix-configs/SITL/init/lpe/f450-1 ' + PX4_HOME + '/Firmware/posix-configs/SITL/init/lpe/f450-tmp-' +
-        uav_str)
+        'cp '+ PX4_HOME + '/Firmware/posix-configs/SITL/init/lpe/f450-1 ' + PX4_HOME + '/Firmware/posix-configs/SITL/init/lpe/f450-tmp-' + uav_str)
 
     replaceInFile(str(simulator_udp_port), str(simulator_udp_port+100*NUM), PX4_HOME + '/Firmware/posix-configs/SITL/init/lpe/f450-tmp-' + uav_str)
+    replaceInFile(str(mavlink_start_port), str(mavlink_start_port+100*NUM), PX4_HOME + '/Firmware/posix-configs/SITL/init/lpe/f450-tmp-' + uav_str)
+    replaceInFile(str(mavlink_onboard_local), str(mavlink_onboard_local+100*NUM), PX4_HOME + '/Firmware/posix-configs/SITL/init/lpe/f450-tmp-' + uav_str)
+    replaceInFile(str(mavlink_onboard_remote), str(mavlink_onboard_remote+100*NUM), PX4_HOME + '/Firmware/posix-configs/SITL/init/lpe/f450-tmp-' + uav_str)
+    replaceInFile('MAV_SYS_ID 2', 'MAV_SYS_ID ' + str(NUM), PX4_HOME + '/Firmware/posix-configs/SITL/init/lpe/f450-tmp-' + uav_str)
+
     replaceInFile('f450-1', 'f450-tmp-' + uav_str, PX4_HOME + '/Firmware/Tools/sitl_gazebo/models/f450-tmp-' + uav_str +'/f450-tmp-' + uav_str + '.sdf')
     replaceInFile('uav_camera',
                   'uav_' + uav_str + '_camera',
