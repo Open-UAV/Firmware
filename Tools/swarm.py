@@ -43,25 +43,25 @@ for NUM in range(1, NUM_UAVs):
 
 launch_file = '$PX4_HOME/Firmware/launch/posix_sitl_multi_tmp.launch'
 
-SOURCE = PX4_HOME + '/Firmware/launch/posix_sitl_multibase.launch'
+SOURCE = PX4_HOME + '/Firmware/launch/posix_sitl_openuav_swarm_base.launch'
 DEST = PX4_HOME + '/Firmware/launch/posix_sitl_multi_tmp.launch'
 
 file_block = ''
 for NUM in range(1, NUM_UAVs):
-    uav_block = '<arg name="x1" default="0"/>' + \
-                '<arg name="y' + str(NUM) + '" default="1"/>' + \
-                '<arg name="vehicle' + str(NUM) + '" default="f450-tmp-1"/>' + \
+    uav_block = '<arg name="x' + str(NUM) + '" default="0"/>' + \
+                '<arg name="y' + str(NUM) + '" default="' + str(NUM) +'"/>\n' + \
+                '<arg name="vehicle' + str(NUM) + '" default="f450-tmp-' + str(NUM) + '"/>\n' + \
                 '<arg name="sdf' + str(
-        NUM) + '" default="$(find mavlink_sitl_gazebo)/models/$(arg vehicle1)/$(arg vehicle1).sdf"/>' + \
+        NUM) + '" default="$(find mavlink_sitl_gazebo)/models/$(arg vehicle' + str(NUM) + ')/$(arg vehicle1).sdf"/>\n' + \
                 '<arg name="rcS' + str(
-        NUM) + '" default="$(find px4)/posix-configs/SITL/init/$(arg est)/$(arg vehicle1)"/>' + \
+        NUM) + '" default="$(find px4)/posix-configs/SITL/init/$(arg est)/$(arg vehicle' + str(NUM) + ')"/>\n' + \
                 '<node name="sitl' + str(
-        NUM) + '" pkg="px4" type="px4" output="screen" args="$(find px4) $(arg rcS1)"></node>' + \
+        NUM) + '" pkg="px4" type="px4" output="screen" args="$(find px4) $(arg rcS' + str(NUM) + ')"></node>\n' + \
                 '<node name="$(anon vehicle_spawn_' + str(
-        NUM) + ')" output="screen" pkg="gazebo_ros" type="spawn_model"' + \
-                'args="-sdf -file $(arg sdf' + str(NUM) + ') -model $(arg vehicle1) -x $(arg x' + str(
+        NUM) + ')" output="screen" pkg="gazebo_ros" type="spawn_model"\n' + \
+                'args="-sdf -file $(arg sdf' + str(NUM) + ') -model $(arg vehicle' + str(NUM) + ') -x $(arg x\n' + str(
         NUM) + '=) -y $(arg y' + str(
-        NUM) + ') -z $(arg z) -R $(arg R) -P $(arg P) -Y $(arg Y)"/>-->'
+        NUM) + ') -z $(arg z) -R $(arg R) -P $(arg P) -Y $(arg Y)"/>\n'
     file_block = file_block + '\n' + uav_block
 
 for NUM in range(1, NUM_UAVs):
