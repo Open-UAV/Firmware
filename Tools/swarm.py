@@ -39,6 +39,7 @@ for NUM in range(1, NUM_UAVs):
     replaceInFile(str(mavlink_onboard_local), str(mavlink_onboard_local+100*NUM), PX4_HOME + '/Firmware/posix-configs/SITL/init/lpe/f450-tmp-' + uav_str)
     replaceInFile(str(mavlink_onboard_remote), str(mavlink_onboard_remote+100*NUM), PX4_HOME + '/Firmware/posix-configs/SITL/init/lpe/f450-tmp-' + uav_str)
     replaceInFile('MAV_SYS_ID 2', 'MAV_SYS_ID ' + str(NUM), PX4_HOME + '/Firmware/posix-configs/SITL/init/lpe/f450-tmp-' + uav_str)
+    replaceInFile('MAV_COMP_ID 2', 'MAV_COMP_ID ' + str(NUM), PX4_HOME + '/Firmware/posix-configs/SITL/init/lpe/f450-tmp-' + uav_str)
 
     replaceInFile('f450-1', 'f450-tmp-' + uav_str, PX4_HOME + '/Firmware/Tools/sitl_gazebo/models/f450-tmp-' + uav_str +'/f450-tmp-' + uav_str + '.sdf')
     replaceInFile('uav_camera',
