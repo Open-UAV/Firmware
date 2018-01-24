@@ -6,7 +6,7 @@ def replaceInFile(orig, repl, filename):
     os.system('sed -i "s/' + orig + '/' +repl + '/g" ' + filename)
 
 NUM_UAVs = int(sys.argv[1]) + 1
-PX4_HOME = '/home/nsf/open-uav'
+PX4_HOME = '/root/src'
 print(NUM_UAVs)
 for NUM in range(1, NUM_UAVs):
 
