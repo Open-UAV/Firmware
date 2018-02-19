@@ -16,7 +16,7 @@
 
     <arg name="debug" default="false"/>
     <arg name="verbose" default="false"/>
-    <arg name="paused" default="true"/>
+    <arg name="paused" default="false"/>
 
     <arg name="log_output" default="screen" />
 
